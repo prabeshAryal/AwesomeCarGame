@@ -1,0 +1,45 @@
+# Ignore build artifacts and system files
+*.obj
+*.pdb
+*.idb
+*.ilk
+*.log
+*.tlog
+*.lastbuildstate
+*.recipe
+
+# Ignore binaries and debug builds
+*.exe
+*.dll
+
+# Visual Studio user-specific files
+*.user
+*.VC.db
+*.suo
+*.opensdf
+*.cache
+*.dbmdl
+
+# Output directories
+[xX]64/
+Debug/
+Release/
+
+# VS Code and other editor settings
+.vscode/
+*.code-workspace
+
+# CMake files (if used later)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Hidden system files
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Secret or API keys (if any)
+*.env
+secrets.json
