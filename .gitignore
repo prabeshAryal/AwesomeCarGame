@@ -24,7 +24,8 @@
 [xX]64/
 Debug/
 Release/
-
+.vs/
+bin/
 # VS Code and other editor settings
 .vscode/
 *.code-workspace

@@ -9,11 +9,11 @@ void render() {
     glClear(GL_COLOR_BUFFER_BIT); // Clear the screen
 
     glBegin(GL_TRIANGLES);       // Start drawing a triangle
-    glColor3f(1.0f, 0.0f, 0.0f); // Red
+    glColor3f(1.0f, 0.0f, 0.1f); // Red
     glVertex2f(-0.5f, -0.5f);    // Bottom left
     glColor3f(0.0f, 1.0f, 0.0f); // Green
     glVertex2f(0.5f, -0.5f);     // Bottom right
-    glColor3f(0.0f, 0.0f, 1.0f); // Blue
+    glColor3f(0.1f, 0.0f, 1.0f); // Blue
     glVertex2f(0.0f, 0.5f);      // Top center
     glEnd();
 
@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
     glewInit();                             // Initialize GLEW
 
     initialize();                           // Call initialization function
-
+    std::cout << "hello";
     glutDisplayFunc(render);                // Set rendering function
     glutMainLoop();                         // Start the main loop
 
