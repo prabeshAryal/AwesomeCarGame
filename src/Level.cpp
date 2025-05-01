@@ -33,6 +33,11 @@ Level::Level() : roadWidth(4.5f), roadLength(20.0f), scrollSpeed(LEVEL_1_SPEED),
                 highScore(0) {
     srand(static_cast<unsigned int>(time(nullptr)));
     loadHighScore();
+    
+    // // Spawn initial obstacles immediately
+    // spawnObstacle();
+    // spawnObstacle(); // Spawn two obstacles to start with
+    // obstacleSpawnTimer = INITIAL_OBSTACLE_SPAWN_INTERVAL; // Reset timer to start counting from now
 }
 
 Level::~Level() {
