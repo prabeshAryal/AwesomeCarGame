@@ -287,9 +287,10 @@ void Level::drawObstacles() {
 
 void Level::spawnObstacle() {
     Obstacle obstacle;
-    float margin = 0.01f;
-    float minX = -roadWidth + margin + 0.15f; // 0.15f margin for obstacle width
-    float maxX = roadWidth - margin - 0.15f;
+    float border = 0.02f; // Yellow line width
+    float margin = 0.15f; // Increased margin for better gameplay
+    float minX = -roadWidth + border + margin + 0.15f; // 0.15f margin for obstacle width
+    float maxX = roadWidth - border - margin - 0.15f;
     obstacle.x = minX + static_cast<float>(rand()) / RAND_MAX * (maxX - minX);
     obstacle.y = roadLength;
     obstacle.isActive = true;

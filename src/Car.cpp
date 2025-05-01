@@ -43,8 +43,8 @@ void Car::update(float deltaTime) {
 
     // Keep car within bounds, but allow for more vertical movement space
     // Prevent crossing yellow border lines (matching drawLaneLines)
-    float border = 0.02f;
-    float margin = 0.01f;
+    float border = 0.02f; // Yellow line width
+    float margin = 0.15f; // Increased margin for better gameplay
     float carRenderWidth = 0.2f; // Use the actual rendered width
     float leftBound = -1.0f + border + carRenderWidth/2.0f + margin;
     float rightBound = 1.0f - border - carRenderWidth/2.0f - margin;
