@@ -7,9 +7,9 @@
 
 const float MIN_SCROLL_SPEED = 0.3f;
 const float MAX_SCROLL_SPEED = 2.0f;
-const float LEVEL_1_SPEED = 0.2f; // Very slow start
-const float LEVEL_2_SPEED = 0.8f; // Medium
-const float LEVEL_3_SPEED = 1.6f; // Old level 1 speed (fastest)
+const float LEVEL_1_SPEED = 0.5f; // Increased from 0.2f for faster start
+const float LEVEL_2_SPEED = 1.0f; // Increased from 0.8f
+const float LEVEL_3_SPEED = 1.6f; // Kept same
 const float SPEED_INCREASE_PER_SEC = 0.04f; // How fast the speed ramps up (tweak as desired)
 
 // Add to the top of the file after includes
@@ -20,6 +20,11 @@ const int INITIAL_SCORE = 100;
 const int LEVEL_UP_MULTIPLIER = 2; // Double score for next level
 const float SCORE_PER_SECOND = 1.0f; // 1 point per second
 const float SPEED_SCORE_MULTIPLIER = 0.5f; // Additional points based on speed
+
+// Add obstacle spawn timing constants
+const float INITIAL_OBSTACLE_SPAWN_INTERVAL = 2.0f; // Spawn every 2 seconds at start
+const float MIN_OBSTACLE_SPAWN_INTERVAL = 1.0f; // Minimum spawn interval
+const float OBSTACLE_SPAWN_SPEED_FACTOR = 0.5f; // How much speed affects spawn rate
 
 Level::Level() : roadWidth(4.5f), roadLength(20.0f), scrollSpeed(LEVEL_1_SPEED),
                 score(INITIAL_SCORE), level(1), levelTimer(0.0f),
@@ -58,6 +63,19 @@ void Level::createRoadTexture() {
     const int textureHeight = ROAD_TEXTURE_SIZE;
     unsigned char* textureData = new unsigned char[textureWidth * textureHeight * 3];
 
+    // Create simple black/gray road texture
+    for (int y = 0; y < textureHeight; y++) {
+        for (int x = 0; x < textureWidth; x++) {
+            int index = (y * textureWidth + x) * 3;
+            // Base dark gray color
+            unsigned char gray = 40 + (rand() % 10); // Dark gray with slight variation
+            textureData[index] = gray;     // R
+            textureData[index + 1] = gray; // G
+            textureData[index + 2] = gray; // B
+        }
+    }
+
+    /* Original texture generation code (commented out for easy reversion)
     // Calculate where the yellow lines should be in the texture - matching drawLaneLines
     float emergencyMarginRatio = 0.3f / roadWidth; // Match the larger margin in drawLaneLines
     // Place yellow lines slightly inward from the edges to ensure visibility
@@ -81,6 +99,7 @@ void Level::createRoadTexture() {
             }
         }
     }
+    */
 
     // Generate texture
     glGenTextures(1, &roadTextureId);
@@ -142,10 +161,10 @@ void Level::update(float deltaTime, Car& playerCar) {
         }
     }
 
-    // Update enemy cars
+    // Update enemy cars - make them move twice as fast as obstacles
     for (auto& enemy : enemyCars) {
         if (enemy.isActive()) {
-            enemy.setY(enemy.getY() - enemy.getSpeed() * deltaTime);
+            enemy.setY(enemy.getY() - (scrollSpeed * 2.0f) * deltaTime);
             if (enemy.getY() < -roadLength) {
                 enemy.setActive(false);
             }
@@ -153,15 +172,15 @@ void Level::update(float deltaTime, Car& playerCar) {
     }
 
     // Spawn new obstacles with speed-based timing
-    float baseObstacleInterval = 3.0f;
-    float obstacleSpawnInterval = baseObstacleInterval / scrollSpeed;
+    float obstacleSpawnInterval = std::max(MIN_OBSTACLE_SPAWN_INTERVAL, 
+                                         INITIAL_OBSTACLE_SPAWN_INTERVAL - (scrollSpeed * OBSTACLE_SPAWN_SPEED_FACTOR));
     if (obstacleSpawnTimer >= obstacleSpawnInterval) {
         spawnObstacle();
         obstacleSpawnTimer = 0.0f;
     }
 
     // Spawn new enemy cars with speed-based timing
-    float baseEnemyInterval = 6.0f;
+    float baseEnemyInterval = 4.0f; // Reduced from 6.0f
     float enemySpawnInterval = baseEnemyInterval / scrollSpeed;
     if (enemySpawnTimer >= enemySpawnInterval) {
         spawnEnemyCar();
