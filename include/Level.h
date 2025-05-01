@@ -35,6 +35,7 @@ public:
     bool isComplete() const;
     int getScore() const;
     int getLevel() const;
+    int getHighScore() const;
     void reset();
     void checkCollisions(Car& playerCar);
 
@@ -47,6 +48,8 @@ private:
     void drawObstacles();
     void updateLevel();
     void updateTimerScore(float deltaTime);
+    void loadHighScore();
+    void saveHighScore();
 
     GLuint roadTextureId;
     std::vector<Obstacle> obstacles;
@@ -76,4 +79,5 @@ private:
     static constexpr float OBSTACLE_SPAWN_INTERVAL = 1.0f;
     static constexpr float ENEMY_SPAWN_INTERVAL = 5.0f;
     static constexpr int ROAD_TEXTURE_SIZE = 256;  // Size of the procedural texture
+    int highScore;
 }; 

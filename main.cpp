@@ -123,6 +123,12 @@ void renderText(float x, float y, const char* text) {
 void renderMenu() {
     glColor3f(1.0f, 1.0f, 1.0f);
     renderText(-0.35f, 0.5f, "NEED FOR SPEED INFINITY");
+    
+    // Display high score
+    char highScoreText[32];
+    snprintf(highScoreText, sizeof(highScoreText), "High Score: %d", currentLevel.getHighScore());
+    renderText(-0.2f, 0.3f, highScoreText);
+    
     for (int i = 0; i < MENU_ITEMS; ++i) {
         if (i == menuIndex) {
             glColor3f(1.0f, 1.0f, 0.0f); // Highlighted
@@ -173,19 +179,51 @@ void renderGame() {
     // Disable depth test for HUD elements
     glDisable(GL_DEPTH_TEST);
     
-    // Set HUD color
-    glColor3f(1.0f, 1.0f, 0.0f);  // Yellow text
-    
-    // Draw HUD text
-    char scoreText[32], healthText[32], levelText[32];
+    // Draw HUD text with better positioning and formatting
+    char scoreText[32], highScoreText[32], healthText[32], levelText[32];
     sprintf_s(scoreText, "Score: %d", currentLevel.getScore());
-    sprintf_s(healthText, "Health: %.0f", playerCar.getHealth());
-    sprintf_s(levelText, "Level: %d", currentLevel.getLevel());
+    sprintf_s(highScoreText, "Best: %d", currentLevel.getHighScore());
+    sprintf_s(healthText, "HP: %.0f%%", playerCar.getHealth());
+    sprintf_s(levelText, "Lvl: %d", currentLevel.getLevel());
     
-    // Position HUD away from yellow lines (inward)
-    renderText(-0.85f, 0.9f, scoreText);  // Moved more toward center to avoid yellow line
-    renderText(-0.1f, 0.9f, levelText);
-    renderText(0.5f, 0.9f, healthText);   // Moved more toward center to avoid yellow line
+    // Calculate the same boundaries as car movement
+    float emergencyMargin = 0.3f;
+    float yellowLinePosition = 4.5f - emergencyMargin; // 4.5f is roadWidth
+    float safetyMargin = 0.1f;
+    float carWidth = 0.2f;
+    float leftBound = -yellowLinePosition + carWidth/2.0f + safetyMargin + 1.5f;
+    float rightBound = yellowLinePosition - carWidth/2.0f - safetyMargin - 1.5f;
+    
+    // Convert road bounds to screen coordinates (approximately)
+    float screenLeftBound = leftBound / 4.5f;  // Normalize by roadWidth
+    float screenRightBound = rightBound / 4.5f;
+    
+    // Position all elements in one line with even spacing
+    float totalWidth = screenRightBound - screenLeftBound;
+    float spacing = totalWidth / 4.0f;  // Divide space into 4 sections
+    
+    // Score (leftmost)
+    glColor3f(1.0f, 1.0f, 1.0f);  // White text for score
+    renderText(screenLeftBound, 0.9f, scoreText);
+    
+    // High Score
+    glColor3f(1.0f, 0.84f, 0.0f);  // Gold color for high score
+    renderText(screenLeftBound + spacing, 0.9f, highScoreText);
+    
+    // Level
+    glColor3f(0.0f, 1.0f, 1.0f);  // Cyan for level
+    renderText(screenLeftBound + spacing * 2, 0.9f, levelText);
+    
+    // Health (rightmost)
+    float healthPercent = playerCar.getHealth();
+    if (healthPercent > 60.0f) {
+        glColor3f(0.0f, 1.0f, 0.0f);  // Green for good health
+    } else if (healthPercent > 30.0f) {
+        glColor3f(1.0f, 1.0f, 0.0f);  // Yellow for medium health
+    } else {
+        glColor3f(1.0f, 0.0f, 0.0f);  // Red for low health
+    }
+    renderText(screenLeftBound + spacing * 3, 0.9f, healthText);
     
     // Restore settings
     glEnable(GL_DEPTH_TEST);

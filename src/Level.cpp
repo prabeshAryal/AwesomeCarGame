@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
+#include <fstream>
 
 const float MIN_SCROLL_SPEED = 0.8f;
 const float MAX_SCROLL_SPEED = 2.0f;
@@ -11,17 +12,44 @@ const float LEVEL_2_SPEED = 1.2f; // Medium
 const float LEVEL_3_SPEED = 2.0f; // Old level 1 speed (fastest)
 const float SPEED_INCREASE_PER_SEC = 0.08f; // How fast the speed ramps up (tweak as desired)
 
+// Add to the top of the file after includes
+const char* HIGH_SCORE_FILE = "highscore.txt";
+
+// Add at the top with other constants
+const int INITIAL_SCORE = 100;
+const int LEVEL_UP_MULTIPLIER = 2; // Double score for next level
+const float SCORE_PER_SECOND = 1.0f; // 1 point per second
+const float SPEED_SCORE_MULTIPLIER = 0.5f; // Additional points based on speed
+
 Level::Level() : roadWidth(4.5f), roadLength(20.0f), scrollSpeed(LEVEL_1_SPEED),
-                score(0), level(1), levelTimer(0.0f),
+                score(INITIAL_SCORE), level(1), levelTimer(0.0f),
                 obstacleSpawnTimer(0.0f), enemySpawnTimer(0.0f),
-                roadOffset(0.0f), roadTextureId(0), scoreTimer(0.0f) {
+                roadOffset(0.0f), roadTextureId(0), scoreTimer(0.0f),
+                highScore(0) {
     srand(static_cast<unsigned int>(time(nullptr)));
+    loadHighScore();
 }
 
 Level::~Level() {
     // Clean up the road texture
     if (roadTextureId != 0) {
         glDeleteTextures(1, &roadTextureId);
+    }
+}
+
+void Level::loadHighScore() {
+    std::ifstream file(HIGH_SCORE_FILE);
+    if (file.is_open()) {
+        file >> highScore;
+        file.close();
+    }
+}
+
+void Level::saveHighScore() {
+    std::ofstream file(HIGH_SCORE_FILE);
+    if (file.is_open()) {
+        file << highScore;
+        file.close();
     }
 }
 
@@ -40,7 +68,7 @@ void Level::createRoadTexture() {
         for (int x = 0; x < textureWidth; x++) {
             int index = (y * textureWidth + x) * 3;
 
-            // Yellow lines at visible positions
+            // Yellow lines at visible positions (keeping our existing positions)
             if (x >= yellowLinePosition - 2 && x <= yellowLinePosition + 2) { // Left edge
                 textureData[index] = 240;     // R
                 textureData[index + 1] = 240; // G
@@ -51,36 +79,27 @@ void Level::createRoadTexture() {
                 textureData[index + 1] = 240; // G
                 textureData[index + 2] = 0;   // B
             }
-            // White dashed line in middle
+            // White dashed line in middle (keeping our existing pattern)
             else if (x == textureWidth / 2 && y % 24 < 12) {
                 textureData[index] = 255;     // R
                 textureData[index + 1] = 255; // G
                 textureData[index + 2] = 255; // B
             }
             else {
-                // Higher quality asphalt texture with more variations and details
+                // Base asphalt with better density from example
+                unsigned char gray = 60 + (rand() % 20); // More consistent base color
                 
-                // Base dark gray asphalt 
-                unsigned char gray = 60 + (rand() % 25); // Increased variation
-                
-                // Add detailed asphalt speckling
-                if (rand() % 10 == 0) {
-                    // Small darker spots for realism
-                    gray -= (rand() % 15);
-                }
-                
-                // Road shine effect - brighter spots
-                if (((x + y) % 32 < 2) && (rand() % 8 == 0)) {
-                    gray += (rand() % 40); // Brighter shine spots
-                    textureData[index] = gray + 10;     // Slightly reddish tint for realism
-                    textureData[index + 1] = gray;      
-                    textureData[index + 2] = gray - 5;  // Slightly bluish tint for realism
+                // Road shine effect with better density
+                if (((x + y) % 64 < 3) && (rand() % 10 == 0)) {
+                    textureData[index] = 200;     // R
+                    textureData[index + 1] = 200; // G
+                    textureData[index + 2] = 200; // B
                 }
                 else {
                     // Base asphalt color
-                    textureData[index] = gray;
-                    textureData[index + 1] = gray;
-                    textureData[index + 2] = gray;
+                    textureData[index] = gray;     // R
+                    textureData[index + 1] = gray; // G
+                    textureData[index + 2] = gray; // B
                 }
             }
         }
@@ -91,11 +110,16 @@ void Level::createRoadTexture() {
     glBindTexture(GL_TEXTURE_2D, roadTextureId);
 
     // Set texture parameters for better quality
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     // Upload texture data
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, textureData);
+    
+    // Generate mipmaps for better quality at different distances
+    glGenerateMipmap(GL_TEXTURE_2D);
 
     delete[] textureData;
 }
@@ -117,16 +141,14 @@ void Level::update(float deltaTime, Car& playerCar) {
     obstacleSpawnTimer += deltaTime;
     enemySpawnTimer += deltaTime;
 
-    // Speed logic: slow start, ramp up to next level, then jump to next speed
-    if (score < LEVEL_2_SCORE) {
-        if (scrollSpeed < LEVEL_2_SPEED) {
-            scrollSpeed += SPEED_INCREASE_PER_SEC * deltaTime;
-            if (scrollSpeed > LEVEL_2_SPEED) scrollSpeed = LEVEL_2_SPEED;
+    // Progressive speed increase
+    if (scrollSpeed < MAX_SCROLL_SPEED) {
+        float speedIncrease = SPEED_INCREASE_PER_SEC * deltaTime;
+        if (scrollSpeed > 1.0f) {
+            speedIncrease *= 0.5f;
         }
-    } else if (score < LEVEL_3_SCORE) {
-        scrollSpeed = LEVEL_2_SPEED;
-    } else {
-        scrollSpeed = LEVEL_3_SPEED;
+        scrollSpeed += speedIncrease;
+        if (scrollSpeed > MAX_SCROLL_SPEED) scrollSpeed = MAX_SCROLL_SPEED;
     }
 
     // Update road offset for scrolling
@@ -135,7 +157,7 @@ void Level::update(float deltaTime, Car& playerCar) {
         roadOffset -= 1.0f;
     }
 
-    // Update obstacles
+    // Update obstacles with current speed
     for (auto& obstacle : obstacles) {
         obstacle.y -= scrollSpeed * deltaTime;
         if (obstacle.y < -roadLength) {
@@ -143,47 +165,60 @@ void Level::update(float deltaTime, Car& playerCar) {
         }
     }
 
-    // Update enemy cars - move by their own speed
+    // Update enemy cars
     for (auto& enemy : enemyCars) {
         if (enemy.isActive()) {
             enemy.setY(enemy.getY() - enemy.getSpeed() * deltaTime);
-            if (rand() % 100 == 0) {
-                std::cout << "Enemy car at position (" << enemy.getX() << ", " << enemy.getY() << ")" << std::endl;
-            }
             if (enemy.getY() < -roadLength) {
                 enemy.setActive(false);
-                std::cout << "Enemy car went off-screen" << std::endl;
             }
         }
     }
 
-    // Spawn new obstacles
-    if (obstacleSpawnTimer >= OBSTACLE_SPAWN_INTERVAL) {
+    // Spawn new obstacles with speed-based timing
+    float baseObstacleInterval = 3.0f;
+    float obstacleSpawnInterval = baseObstacleInterval / scrollSpeed;
+    if (obstacleSpawnTimer >= obstacleSpawnInterval) {
         spawnObstacle();
         obstacleSpawnTimer = 0.0f;
     }
 
-    // Spawn new enemy cars
-    if (enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
+    // Spawn new enemy cars with speed-based timing
+    float baseEnemyInterval = 6.0f;
+    float enemySpawnInterval = baseEnemyInterval / scrollSpeed;
+    if (enemySpawnTimer >= enemySpawnInterval) {
         spawnEnemyCar();
         enemySpawnTimer = 0.0f;
     }
 
-    // Update score based on time
+    // Update score based on time and speed
     updateTimerScore(deltaTime);
+    
+    // Update level when score doubles
+    int nextLevelScore = INITIAL_SCORE * static_cast<int>(std::pow(LEVEL_UP_MULTIPLIER, level));
+    if (score >= nextLevelScore) {
+        level++;
+    }
     
     // Check collisions
     checkCollisions(playerCar);
 
-    // Update level based on score
-    updateLevel();
+    // Update high score if needed
+    if (score > highScore) {
+        highScore = score;
+        saveHighScore();
+    }
 }
 
 void Level::updateTimerScore(float deltaTime) {
     scoreTimer += deltaTime;
-    if (scoreTimer >= TIME_SCORE_INTERVAL) {
-        score += TIME_SCORE_POINTS;
-        scoreTimer -= TIME_SCORE_INTERVAL;
+    if (scoreTimer >= 1.0f) { // Update score every second
+        // Base score increases with time
+        int baseScore = static_cast<int>(SCORE_PER_SECOND);
+        // Additional points based on speed
+        int speedBonus = static_cast<int>(scrollSpeed * SPEED_SCORE_MULTIPLIER);
+        score += baseScore + speedBonus;
+        scoreTimer = 0.0f;
     }
 }
 
@@ -191,17 +226,9 @@ void Level::render() {
     drawRoad();
     drawObstacles();
 
-    // Render enemy cars with their texture
+    // Render enemy cars
     for (auto& enemy : enemyCars) {
         if (enemy.isActive()) {
-            // Reset color to white for proper texture rendering
-            glColor3f(1.0f, 1.0f, 1.0f);
-            
-            // Make sure blending is enabled for transparent textures
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            
-            // Let the enemy car handle its own rendering
             enemy.render();
         }
     }
@@ -325,18 +352,18 @@ void Level::spawnObstacle() {
     Obstacle obstacle;
     
     // Use the same emergency margin as in drawLaneLines
-    float emergencyMargin = 0.3f; // MATCH THE VALUE in drawLaneLines() (was 0.2f)
+    float emergencyMargin = 0.3f; // MATCH THE VALUE in drawLaneLines()
     float yellowLinePosition = roadWidth - emergencyMargin;
     
-    // Ensure obstacles are well within the yellow lines
+    // Use the same boundary calculations as the car
     float safetyMargin = 0.1f;
     float obstacleWidth = 0.3f; // Use the largest obstacle width
     
-    // Calculate spawn boundaries to keep obstacles fully within yellow lines
-    float minX = -yellowLinePosition + obstacleWidth/2.0f + safetyMargin;
-    float maxX = yellowLinePosition - obstacleWidth/2.0f - safetyMargin;
+    // Calculate spawn boundaries to match car movement bounds
+    float leftBound = -yellowLinePosition + obstacleWidth/2.0f + safetyMargin + 1.5f;
+    float rightBound = yellowLinePosition - obstacleWidth/2.0f - safetyMargin - 1.5f;
     
-    obstacle.x = minX + static_cast<float>(rand()) / RAND_MAX * (maxX - minX);
+    obstacle.x = leftBound + static_cast<float>(rand()) / RAND_MAX * (rightBound - leftBound);
     obstacle.y = roadLength;
     obstacle.isActive = true;
 
@@ -372,30 +399,28 @@ void Level::spawnEnemyCar() {
     Car enemy;
     
     // Use the same emergency margin as in drawLaneLines
-    float emergencyMargin = 0.3f; // MATCH THE VALUE in drawLaneLines() (was 0.2f)
+    float emergencyMargin = 0.3f; // MATCH THE VALUE in drawLaneLines()
     float yellowLinePosition = roadWidth - emergencyMargin;
     
-    // Ensure enemy cars are well within the yellow lines
+    // Use the same boundary calculations as the car
     float safetyMargin = 0.1f;
     float enemyCarWidth = 0.2f;
     
-    // Calculate spawn boundaries to keep enemy cars fully within yellow lines
-    float minX = -yellowLinePosition + enemyCarWidth/2.0f + safetyMargin;
-    float maxX = yellowLinePosition - enemyCarWidth/2.0f - safetyMargin;
+    // Calculate spawn boundaries to match car movement bounds
+    float leftBound = -yellowLinePosition + enemyCarWidth/2.0f + safetyMargin + 1.5f;
+    float rightBound = yellowLinePosition - enemyCarWidth/2.0f - safetyMargin - 1.5f;
     
-    enemy.setX(minX + static_cast<float>(rand()) / RAND_MAX * (maxX - minX));
+    enemy.setX(leftBound + static_cast<float>(rand()) / RAND_MAX * (rightBound - leftBound));
     enemy.setY(roadLength); // Start at the top of the road
     
-    // Set the enemy car to move downward at the same speed as the road
-    float enemySpeed = scrollSpeed*2;
+    // Set the enemy car to move downward at a speed relative to current road speed
+    // Make enemy cars slightly faster than the road to increase challenge
+    float enemySpeed = scrollSpeed * 1.5f; // 50% faster than road speed
     enemy.setSpeed(enemySpeed);
     enemy.setActive(true);
     
     // Initialize the enemy car with the enemy car texture
     enemy.initAsEnemy();
-    
-    std::cout << "Spawned enemy car at position (" << enemy.getX() << ", " << enemy.getY() 
-              << ") with speed " << enemySpeed << std::endl;
     
     // Add to enemy cars vector
     enemyCars.push_back(enemy);
@@ -478,10 +503,14 @@ int Level::getLevel() const {
     return level;
 }
 
+int Level::getHighScore() const {
+    return highScore;
+}
+
 void Level::reset() {
     obstacles.clear();
     enemyCars.clear();
-    score = 0;
+    score = INITIAL_SCORE; // Reset to initial score
     level = 1;
     scrollSpeed = LEVEL_1_SPEED;
     levelTimer = 0.0f;
