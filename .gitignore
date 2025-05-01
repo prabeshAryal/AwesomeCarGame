@@ -44,3 +44,5 @@ desktop.ini
 # Secret or API keys (if any)
 *.env
 secrets.json
+assets/raw
+NeedForS.d39d1817/
