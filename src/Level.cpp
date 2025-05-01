@@ -32,46 +32,56 @@ void Level::createRoadTexture() {
 
     // Calculate where the yellow lines should be in the texture - matching drawLaneLines
     float emergencyMarginRatio = 0.3f / roadWidth; // Match the larger margin in drawLaneLines
-    int yellowLinePosition = static_cast<int>((1.0f - emergencyMarginRatio) * textureWidth / 2);
+    // Place yellow lines slightly inward from the edges to ensure visibility
+    int yellowLinePosition = static_cast<int>(textureWidth * 0.2f); // 10% from edge
     
-    // Create road texture pattern with SINGLE set of yellow lines at edges
+    // Create road texture pattern with much more detailed asphalt
     for (int y = 0; y < textureHeight; y++) {
         for (int x = 0; x < textureWidth; x++) {
             int index = (y * textureWidth + x) * 3;
 
-            // Dark gray asphalt base
-            unsigned char gray = 50 + (rand() % 15); // Darker with less noise
-
-            // ONLY ONE set of yellow lines at each edge - make it 3 pixels wide
-            if (x >= yellowLinePosition - 1 && x <= yellowLinePosition + 1) {
-                // Left side yellow line (3 pixels wide)
+            // Yellow lines at visible positions
+            if (x >= yellowLinePosition - 2 && x <= yellowLinePosition + 2) { // Left edge
                 textureData[index] = 240;     // R
                 textureData[index + 1] = 240; // G
                 textureData[index + 2] = 0;   // B
             }
-            else if (x >= textureWidth - yellowLinePosition - 1 && x <= textureWidth - yellowLinePosition + 1) {
-                // Right side yellow line (3 pixels wide)
+            else if (x >= textureWidth - yellowLinePosition - 2 && x <= textureWidth - yellowLinePosition + 2) { // Right edge
                 textureData[index] = 240;     // R
                 textureData[index + 1] = 240; // G
                 textureData[index + 2] = 0;   // B
             }
-            // White center line ONLY - NO yellow in middle
+            // White dashed line in middle
             else if (x == textureWidth / 2 && y % 24 < 12) {
                 textureData[index] = 255;     // R
                 textureData[index + 1] = 255; // G
                 textureData[index + 2] = 255; // B
             }
-            // Road shine effect 
-            else if (((x + y) % 64 < 3) && (rand() % 10 == 0)) {
-                textureData[index] = 170;     // R
-                textureData[index + 1] = 170; // G
-                textureData[index + 2] = 170; // B
-            }
-            // Base asphalt color
             else {
-                textureData[index] = gray;     // R
-                textureData[index + 1] = gray; // G
-                textureData[index + 2] = gray; // B
+                // Higher quality asphalt texture with more variations and details
+                
+                // Base dark gray asphalt 
+                unsigned char gray = 60 + (rand() % 25); // Increased variation
+                
+                // Add detailed asphalt speckling
+                if (rand() % 10 == 0) {
+                    // Small darker spots for realism
+                    gray -= (rand() % 15);
+                }
+                
+                // Road shine effect - brighter spots
+                if (((x + y) % 32 < 2) && (rand() % 8 == 0)) {
+                    gray += (rand() % 40); // Brighter shine spots
+                    textureData[index] = gray + 10;     // Slightly reddish tint for realism
+                    textureData[index + 1] = gray;      
+                    textureData[index + 2] = gray - 5;  // Slightly bluish tint for realism
+                }
+                else {
+                    // Base asphalt color
+                    textureData[index] = gray;
+                    textureData[index + 1] = gray;
+                    textureData[index + 2] = gray;
+                }
             }
         }
     }
@@ -80,7 +90,7 @@ void Level::createRoadTexture() {
     glGenTextures(1, &roadTextureId);
     glBindTexture(GL_TEXTURE_2D, roadTextureId);
 
-    // Set texture parameters
+    // Set texture parameters for better quality
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -208,10 +218,10 @@ void Level::drawRoad() {
     glTexCoord2f(0.0f, 0.0f);
     glVertex3f(-roadWidth, -roadLength, -0.1f);
     // Bottom-right
-    glTexCoord2f(3.0f, 0.0f);
+    glTexCoord2f(1.0f, 0.0f);  // Changed from 3.0f to 1.0f to use the texture once
     glVertex3f(roadWidth, -roadLength, -0.1f);
     // Top-right
-    glTexCoord2f(3.0f, roadOffset * 5.0f);
+    glTexCoord2f(1.0f, roadOffset * 5.0f);  // Changed from 3.0f to 1.0f
     glVertex3f(roadWidth, roadLength, -0.1f);
     // Top-left
     glTexCoord2f(0.0f, roadOffset * 5.0f);
@@ -229,27 +239,28 @@ void Level::drawLaneLines() {
     float emergencyMargin = 0.3f; // Increased margin
     float yellowLinePosition = roadWidth - emergencyMargin;
     
-    // Draw ONLY ONE set of yellow border lines near the edge with greater width
+    // Draw ONLY ONE SINGLE yellow line on each border edge
     glColor3f(1.0f, 1.0f, 0.0f);
-    glLineWidth(8.0f); // Make the yellow lines much thicker and more visible
+    glLineWidth(8.0f); // Make the yellow lines thick and visible
     glBegin(GL_LINES);
-    // Left border - ONLY ONE LINE
+    // Left border - ONE SINGLE LINE
     glVertex3f(-yellowLinePosition, -roadLength, 0.02f);
     glVertex3f(-yellowLinePosition, roadLength, 0.02f);
-    // Right border - ONLY ONE LINE
+    // Right border - ONE SINGLE LINE
     glVertex3f(yellowLinePosition, -roadLength, 0.02f);
     glVertex3f(yellowLinePosition, roadLength, 0.02f);
     glEnd();
-
-    // Draw white lines ONLY in the center (NO yellow in middle)
+    
+    // Add white dashed lines in the middle of the road
     glColor3f(1.0f, 1.0f, 1.0f); // Pure white
-    glLineWidth(5.0f); // White lines in center
+    glLineWidth(5.0f); // Thick white lines
     glBegin(GL_LINES);
+    
+    // Draw white dashed center line
     float dashLength = 0.3f;
     float gapLength = 0.4f;
     float offset = fmod(roadOffset * 2.0f, dashLength + gapLength);
     
-    // Draw ONLY white center line
     for (float y = -roadLength; y < roadLength; ) {
         float yStart = y + offset;
         float yEnd = yStart + dashLength;
@@ -261,6 +272,7 @@ void Level::drawLaneLines() {
     }
     
     glEnd();
+    
     glLineWidth(1.0f); // Reset
 }
 
@@ -313,7 +325,7 @@ void Level::spawnObstacle() {
     Obstacle obstacle;
     
     // Use the same emergency margin as in drawLaneLines
-    float emergencyMargin = 0.2f; 
+    float emergencyMargin = 0.3f; // MATCH THE VALUE in drawLaneLines() (was 0.2f)
     float yellowLinePosition = roadWidth - emergencyMargin;
     
     // Ensure obstacles are well within the yellow lines
@@ -360,7 +372,7 @@ void Level::spawnEnemyCar() {
     Car enemy;
     
     // Use the same emergency margin as in drawLaneLines
-    float emergencyMargin = 0.2f; 
+    float emergencyMargin = 0.3f; // MATCH THE VALUE in drawLaneLines() (was 0.2f)
     float yellowLinePosition = roadWidth - emergencyMargin;
     
     // Ensure enemy cars are well within the yellow lines

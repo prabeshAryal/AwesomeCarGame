@@ -50,8 +50,8 @@ void Car::update(float deltaTime) {
     float safetyMargin = 0.1f; // Large safety margin to absolutely prevent crossing
     
     // Calculate exact bounds to strictly enforce yellow line boundaries
-    float leftBound = -yellowLinePosition + carWidth/2.0f + safetyMargin +1.15f;
-    float rightBound = yellowLinePosition - carWidth/2.0f - safetyMargin -1.15f;
+    float leftBound = -yellowLinePosition + carWidth/2.0f + safetyMargin +1.5f;
+    float rightBound = yellowLinePosition - carWidth/2.0f - safetyMargin -1.5f;
     
     // Display boundary and position info when moving
     if (horizontalSpeed != 0.0f) {
