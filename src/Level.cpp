@@ -11,7 +11,7 @@ const float LEVEL_2_SPEED = 1.2f; // Medium
 const float LEVEL_3_SPEED = 2.0f; // Old level 1 speed (fastest)
 const float SPEED_INCREASE_PER_SEC = 0.08f; // How fast the speed ramps up (tweak as desired)
 
-Level::Level() : roadWidth(2.4f), roadLength(20.0f), scrollSpeed(LEVEL_1_SPEED),
+Level::Level() : roadWidth(4.5f), roadLength(20.0f), scrollSpeed(LEVEL_1_SPEED),
                 score(0), level(1), levelTimer(0.0f),
                 obstacleSpawnTimer(0.0f), enemySpawnTimer(0.0f),
                 roadOffset(0.0f), roadTextureId(0), scoreTimer(0.0f) {
@@ -30,25 +30,42 @@ void Level::createRoadTexture() {
     const int textureHeight = ROAD_TEXTURE_SIZE;
     unsigned char* textureData = new unsigned char[textureWidth * textureHeight * 3];
 
-    // Create road texture pattern (asphalt with yellow border lines)
+    // Calculate where the yellow lines should be in the texture - matching drawLaneLines
+    float emergencyMarginRatio = 0.3f / roadWidth; // Match the larger margin in drawLaneLines
+    int yellowLinePosition = static_cast<int>((1.0f - emergencyMarginRatio) * textureWidth / 2);
+    
+    // Create road texture pattern with SINGLE set of yellow lines at edges
     for (int y = 0; y < textureHeight; y++) {
         for (int x = 0; x < textureWidth; x++) {
             int index = (y * textureWidth + x) * 3;
 
             // Dark gray asphalt base
-            unsigned char gray = 60 + (rand() % 20); // Some noise for realism
+            unsigned char gray = 50 + (rand() % 15); // Darker with less noise
 
-            // Yellow border lines (left and right edges, only 2 pixels wide at the edge)
-            if (x == 0 || x == 1 || x == textureWidth-2 || x == textureWidth-1) {
+            // ONLY ONE set of yellow lines at each edge - make it 3 pixels wide
+            if (x >= yellowLinePosition - 1 && x <= yellowLinePosition + 1) {
+                // Left side yellow line (3 pixels wide)
                 textureData[index] = 240;     // R
                 textureData[index + 1] = 240; // G
                 textureData[index + 2] = 0;   // B
             }
+            else if (x >= textureWidth - yellowLinePosition - 1 && x <= textureWidth - yellowLinePosition + 1) {
+                // Right side yellow line (3 pixels wide)
+                textureData[index] = 240;     // R
+                textureData[index + 1] = 240; // G
+                textureData[index + 2] = 0;   // B
+            }
+            // White center line ONLY - NO yellow in middle
+            else if (x == textureWidth / 2 && y % 24 < 12) {
+                textureData[index] = 255;     // R
+                textureData[index + 1] = 255; // G
+                textureData[index + 2] = 255; // B
+            }
             // Road shine effect 
             else if (((x + y) % 64 < 3) && (rand() % 10 == 0)) {
-                textureData[index] = 200;     // R
-                textureData[index + 1] = 200; // G
-                textureData[index + 2] = 200; // B
+                textureData[index] = 170;     // R
+                textureData[index + 1] = 170; // G
+                textureData[index + 2] = 170; // B
             }
             // Base asphalt color
             else {
@@ -208,25 +225,31 @@ void Level::drawRoad() {
 }
 
 void Level::drawLaneLines() {
-    // Draw left and right yellow border lines almost at the very edge
+    // Add a small emergency margin beyond the yellow lines (like real roads)
+    float emergencyMargin = 0.3f; // Increased margin
+    float yellowLinePosition = roadWidth - emergencyMargin;
+    
+    // Draw ONLY ONE set of yellow border lines near the edge with greater width
     glColor3f(1.0f, 1.0f, 0.0f);
-    glLineWidth(1.0f);
+    glLineWidth(8.0f); // Make the yellow lines much thicker and more visible
     glBegin(GL_LINES);
-    // Left border
-    glVertex3f(-roadWidth + 0.01f, -roadLength, 0.01f);
-    glVertex3f(-roadWidth + 0.01f, roadLength, 0.01f);
-    // Right border
-    glVertex3f(roadWidth - 0.01f, -roadLength, 0.01f);
-    glVertex3f(roadWidth - 0.01f, roadLength, 0.01f);
+    // Left border - ONLY ONE LINE
+    glVertex3f(-yellowLinePosition, -roadLength, 0.02f);
+    glVertex3f(-yellowLinePosition, roadLength, 0.02f);
+    // Right border - ONLY ONE LINE
+    glVertex3f(yellowLinePosition, -roadLength, 0.02f);
+    glVertex3f(yellowLinePosition, roadLength, 0.02f);
     glEnd();
 
-    // Draw thick, short-dash white center line with moving effect
-    glColor3f(1.0f, 1.0f, 1.0f);
-    glLineWidth(4.0f);
+    // Draw white lines ONLY in the center (NO yellow in middle)
+    glColor3f(1.0f, 1.0f, 1.0f); // Pure white
+    glLineWidth(5.0f); // White lines in center
     glBegin(GL_LINES);
-    float dashLength = 0.12f;
-    float gapLength = 0.25f;
-    float offset = fmod(roadOffset * 2.0f, dashLength + gapLength); // Animate dashes
+    float dashLength = 0.3f;
+    float gapLength = 0.4f;
+    float offset = fmod(roadOffset * 2.0f, dashLength + gapLength);
+    
+    // Draw ONLY white center line
     for (float y = -roadLength; y < roadLength; ) {
         float yStart = y + offset;
         float yEnd = yStart + dashLength;
@@ -236,6 +259,7 @@ void Level::drawLaneLines() {
         }
         y += dashLength + gapLength;
     }
+    
     glEnd();
     glLineWidth(1.0f); // Reset
 }
@@ -287,10 +311,19 @@ void Level::drawObstacles() {
 
 void Level::spawnObstacle() {
     Obstacle obstacle;
-    float border = 0.02f; // Yellow line width
-    float margin = 0.15f; // Increased margin for better gameplay
-    float minX = -roadWidth + border + margin + 0.15f; // 0.15f margin for obstacle width
-    float maxX = roadWidth - border - margin - 0.15f;
+    
+    // Use the same emergency margin as in drawLaneLines
+    float emergencyMargin = 0.2f; 
+    float yellowLinePosition = roadWidth - emergencyMargin;
+    
+    // Ensure obstacles are well within the yellow lines
+    float safetyMargin = 0.1f;
+    float obstacleWidth = 0.3f; // Use the largest obstacle width
+    
+    // Calculate spawn boundaries to keep obstacles fully within yellow lines
+    float minX = -yellowLinePosition + obstacleWidth/2.0f + safetyMargin;
+    float maxX = yellowLinePosition - obstacleWidth/2.0f - safetyMargin;
+    
     obstacle.x = minX + static_cast<float>(rand()) / RAND_MAX * (maxX - minX);
     obstacle.y = roadLength;
     obstacle.isActive = true;
@@ -325,9 +358,19 @@ void Level::spawnObstacle() {
 
 void Level::spawnEnemyCar() {
     Car enemy;
-    float border = 0.01f;
-    float minX = -roadWidth + border + 0.15f;
-    float maxX = roadWidth - border - 0.15f;
+    
+    // Use the same emergency margin as in drawLaneLines
+    float emergencyMargin = 0.2f; 
+    float yellowLinePosition = roadWidth - emergencyMargin;
+    
+    // Ensure enemy cars are well within the yellow lines
+    float safetyMargin = 0.1f;
+    float enemyCarWidth = 0.2f;
+    
+    // Calculate spawn boundaries to keep enemy cars fully within yellow lines
+    float minX = -yellowLinePosition + enemyCarWidth/2.0f + safetyMargin;
+    float maxX = yellowLinePosition - enemyCarWidth/2.0f - safetyMargin;
+    
     enemy.setX(minX + static_cast<float>(rand()) / RAND_MAX * (maxX - minX));
     enemy.setY(roadLength); // Start at the top of the road
     

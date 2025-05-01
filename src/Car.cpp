@@ -6,7 +6,7 @@
 Texture Car::enemyCarTexture;
 bool Car::enemyCarTextureLoaded = false;
 
-Car::Car() : x(0.0f), y(-0.5f), width(0.3f), height(0.3f),  // Position car higher up the screen
+Car::Car() : x(0.0f), y(-1.6f), width(0.3f), height(0.3f),  // Position car at bottom
              speed(3.0f), health(100.0f), score(0),
              active(true), fireCooldown(FIRE_COOLDOWN), fireTimer(0.0f),
              horizontalSpeed(0.0f), verticalSpeed(0.0f) {}
@@ -37,41 +37,68 @@ void Car::initAsEnemy() {
 }
 
 void Car::update(float deltaTime) {
-    // Update position based on speed
-    x += horizontalSpeed * deltaTime;
-    y += verticalSpeed * deltaTime;
-
-    // Keep car within bounds, but allow for more vertical movement space
-    // Prevent crossing yellow border lines (matching drawLaneLines)
-    float border = 0.02f; // Yellow line width
-    float margin = 0.15f; // Increased margin for better gameplay
-    float carRenderWidth = 0.2f; // Use the actual rendered width
-    float leftBound = -1.0f + border + carRenderWidth/2.0f + margin;
-    float rightBound = 1.0f - border - carRenderWidth/2.0f - margin;
-    if (x < leftBound) x = leftBound;
-    if (x > rightBound) x = rightBound;
+    // Calculate current position after potential movement
+    float newX = x + horizontalSpeed * deltaTime;
+    float newY = y + verticalSpeed * deltaTime;
     
-    // Allow car to move vertically within a larger range
-    if (y < -0.9f + height/2.0f) y = -0.9f + height/2.0f; // Lower bound
-    if (y > 0.0f - height/2.0f) y = 0.0f - height/2.0f;   // Upper bound (keep car in lower half)
-
+    // Use the exact same emergency margin as in drawLaneLines
+    float emergencyMargin = 0.3f; // MUST match the value in Level::drawLaneLines
+    float yellowLinePosition = 4.5f - emergencyMargin;
+    
+    // Use the exact visual car dimensions
+    float carWidth = 0.2f; // The visual width of the car sprite
+    float safetyMargin = 0.1f; // Large safety margin to absolutely prevent crossing
+    
+    // Calculate exact bounds to strictly enforce yellow line boundaries
+    float leftBound = -yellowLinePosition + carWidth/2.0f + safetyMargin +1.15f;
+    float rightBound = yellowLinePosition - carWidth/2.0f - safetyMargin -1.15f;
+    
+    // Display boundary and position info when moving
+    if (horizontalSpeed != 0.0f) {
+        std::cout << "Car update - Current X: " << x << ", New X: " << newX 
+                  << ", leftBound: " << leftBound << ", rightBound: " << rightBound << std::endl;
+    }
+    
+    // Apply horizontal movement with strict boundaries
+    if (newX < leftBound) {
+        x = leftBound; // Clamp to left boundary
+        horizontalSpeed = 0.0f; // Stop horizontal movement
+    } else if (newX > rightBound) {
+        x = rightBound; // Clamp to right boundary
+        horizontalSpeed = 0.0f; // Stop horizontal movement
+    } else {
+        x = newX; // Apply movement normally
+    }
+    
+    // Apply vertical movement
+    float carHeight = 0.4f;
+    float bottomBound = -1.8f + carHeight/2.0f;
+    float topBound = -0.5f - carHeight/2.0f;
+    
+    if (newY < bottomBound) {
+        y = bottomBound;
+        verticalSpeed = 0.0f; // Stop vertical movement
+    } else if (newY > topBound) {
+        y = topBound;
+        verticalSpeed = 0.0f; // Stop vertical movement
+    } else {
+        y = newY;
+    }
+    
     // Update fire cooldown
     if (fireTimer > 0.0f) {
         fireTimer -= deltaTime;
     }
 
-    // Update projectiles - make sure they move up the screen
+    // Update projectiles
     for (auto& projectile : projectiles) {
         if (projectile.isActive) {
-            // Multiply by deltaTime for frame-rate independence and make sure it moves upward
             projectile.y += PROJECTILE_SPEED * deltaTime;
             
-            // Debug projectile position
-            if (rand() % 100 == 0) { // Only print occasionally to avoid spamming console
+            if (rand() % 100 == 0) {
                 std::cout << "Projectile at (" << projectile.x << ", " << projectile.y << ")" << std::endl;
             }
             
-            // Deactivate if off-screen (top of screen is +1.0)
             if (projectile.y > 1.0f) {
                 projectile.isActive = false;
                 std::cout << "Projectile went off-screen" << std::endl;

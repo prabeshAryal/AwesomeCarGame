@@ -52,13 +52,15 @@ int main(int argc, char** argv) {
     // Initialize GLUT
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-    glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
-    glutCreateWindow("Need for Speed Infinity");
     
-    // Center the window on screen but don't maximize
+    // Get screen dimensions
     int screenWidth = glutGet(GLUT_SCREEN_WIDTH);
     int screenHeight = glutGet(GLUT_SCREEN_HEIGHT);
-    glutPositionWindow((screenWidth - WINDOW_WIDTH) / 2, (screenHeight - WINDOW_HEIGHT) / 2);
+    
+    // Create full screen window
+    glutInitWindowSize(screenWidth, screenHeight);
+    glutCreateWindow("Need for Speed Infinity");
+    glutFullScreen(); // Make window full screen
     
     // Initialize GLEW
     GLenum err = glewInit();
@@ -180,9 +182,10 @@ void renderGame() {
     sprintf_s(healthText, "Health: %.0f", playerCar.getHealth());
     sprintf_s(levelText, "Level: %d", currentLevel.getLevel());
     
-    renderText(-0.95f, 0.9f, scoreText);
+    // Position HUD away from yellow lines (inward)
+    renderText(-0.85f, 0.9f, scoreText);  // Moved more toward center to avoid yellow line
     renderText(-0.1f, 0.9f, levelText);
-    renderText(0.6f, 0.9f, healthText);
+    renderText(0.5f, 0.9f, healthText);   // Moved more toward center to avoid yellow line
     
     // Restore settings
     glEnable(GL_DEPTH_TEST);
@@ -205,14 +208,21 @@ void display() {
     glLoadIdentity();
     
     // Use an orthographic projection with aspect ratio correction
-    if (w <= h) {
-        gluOrtho2D(-1.0, 1.0, -1.0/aspectRatio, 1.0/aspectRatio);
+    // Scale the view to maintain the same relative sizes
+    float scale = 1.0f;
+    if (w > h) {
+        scale = (float)h / (float)w;
+        gluOrtho2D(-1.0f * aspectRatio, 1.0f * aspectRatio, -1.0f, 1.0f);
     } else {
-        gluOrtho2D(-1.0*aspectRatio, 1.0*aspectRatio, -1.0, 1.0);
+        scale = (float)w / (float)h;
+        gluOrtho2D(-1.0f, 1.0f, -1.0f / aspectRatio, 1.0f / aspectRatio);
     }
     
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+    
+    // Apply scaling to maintain consistent sizes
+    glScalef(scale, scale, 1.0f);
     
     // Render based on current state
     switch (currentState) {
@@ -336,10 +346,14 @@ void reshape(int w, int h) {
     glLoadIdentity();
     
     // Use an orthographic projection with aspect ratio correction
-    if (w <= h) {
-        gluOrtho2D(-1.0, 1.0, -1.0/aspectRatio, 1.0/aspectRatio);
+    // Scale the view to maintain the same relative sizes
+    float scale = 1.0f;
+    if (w > h) {
+        scale = (float)h / (float)w;
+        gluOrtho2D(-1.0f * aspectRatio, 1.0f * aspectRatio, -1.0f, 1.0f);
     } else {
-        gluOrtho2D(-1.0*aspectRatio, 1.0*aspectRatio, -1.0, 1.0);
+        scale = (float)w / (float)h;
+        gluOrtho2D(-1.0f, 1.0f, -1.0f / aspectRatio, 1.0f / aspectRatio);
     }
     
     glMatrixMode(GL_MODELVIEW);
