@@ -121,25 +121,61 @@ void renderText(float x, float y, const char* text) {
 }
 
 void renderMenu() {
-    glColor3f(1.0f, 1.0f, 1.0f);
-    renderText(-0.35f, 0.5f, "NEED FOR SPEED INFINITY");
+    // Title
+    glColor3f(1.0f, 0.5f, 0.0f); // Orange color for title
+    renderText(-0.3f, 0.6f, "NEED FOR SPEED");
+    renderText(-0.2f, 0.5f, "INFINITY");
     
-    // Display high score
+    // Separator line
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glLineWidth(2.0f);
+    glBegin(GL_LINES);
+    glVertex2f(-0.5f, 0.45f);
+    glVertex2f(0.5f, 0.45f);
+    glEnd();
+
+    // Display high score with golden color
+    glColor3f(1.0f, 0.84f, 0.0f); // Gold color
     char highScoreText[32];
-    snprintf(highScoreText, sizeof(highScoreText), "High Score: %d", currentLevel.getHighScore());
-    renderText(-0.2f, 0.3f, highScoreText);
+    snprintf(highScoreText, sizeof(highScoreText), "Best Score: %d", currentLevel.getHighScore());
+    renderText(-0.2f, 0.35f, highScoreText);
+    
+    // Menu items with better spacing and highlighting
+    const float menuStartY = 0.1f;
+    const float menuSpacing = 0.15f;
     
     for (int i = 0; i < MENU_ITEMS; ++i) {
+        float y = menuStartY - i * menuSpacing;
+        
+        // Draw selection marker
         if (i == menuIndex) {
-            glColor3f(1.0f, 1.0f, 0.0f); // Highlighted
+            glColor3f(1.0f, 1.0f, 0.0f); // Yellow for selected item
+            renderText(-0.25f, y, "> ");
+            renderText(0.2f, y, " <");
         } else {
-            glColor3f(1.0f, 1.0f, 1.0f);
+            glColor3f(0.7f, 0.7f, 0.7f); // Grey for unselected items
         }
-        renderText(-0.15f, 0.2f - i * 0.15f, menuOptions[i]);
+        
+        // Center the menu item text
+        float textWidth = strlen(menuOptions[i]) * 0.02f; // Approximate width per character
+        float x = -textWidth;
+        renderText(x, y, menuOptions[i]);
     }
-    glColor3f(0.7f, 0.7f, 1.0f);
-    renderText(-0.45f, -0.2f, "Controls: Arrow Keys to move, Space to fire");
-    renderText(-0.45f, -0.3f, "Menu: Up/Down to select, Enter to confirm");
+    
+    // Separator line
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glLineWidth(2.0f);
+    glBegin(GL_LINES);
+    glVertex2f(-0.5f, -0.1f);
+    glVertex2f(0.5f, -0.1f);
+    glEnd();
+    
+    // Controls info at bottom
+    glColor3f(0.5f, 0.5f, 1.0f); // Light blue for controls
+    renderText(-0.45f, -0.3f, "Controls:");
+    glColor3f(0.7f, 0.7f, 0.7f); // Grey for control text
+    renderText(-0.45f, -0.4f, "Arrow Keys - Move    Space - Fire");
+    renderText(-0.45f, -0.5f, "P - Pause    ESC - Exit");
 }
 
 void renderGameOver() {

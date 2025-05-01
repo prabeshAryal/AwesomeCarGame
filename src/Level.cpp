@@ -5,12 +5,12 @@
 #include <iostream>
 #include <fstream>
 
-const float MIN_SCROLL_SPEED = 0.8f;
+const float MIN_SCROLL_SPEED = 0.3f;
 const float MAX_SCROLL_SPEED = 2.0f;
-const float LEVEL_1_SPEED = 0.4f; // Very slow start
-const float LEVEL_2_SPEED = 1.2f; // Medium
-const float LEVEL_3_SPEED = 2.0f; // Old level 1 speed (fastest)
-const float SPEED_INCREASE_PER_SEC = 0.08f; // How fast the speed ramps up (tweak as desired)
+const float LEVEL_1_SPEED = 0.2f; // Very slow start
+const float LEVEL_2_SPEED = 0.8f; // Medium
+const float LEVEL_3_SPEED = 1.6f; // Old level 1 speed (fastest)
+const float SPEED_INCREASE_PER_SEC = 0.04f; // How fast the speed ramps up (tweak as desired)
 
 // Add to the top of the file after includes
 const char* HIGH_SCORE_FILE = "highscore.txt";
@@ -68,39 +68,16 @@ void Level::createRoadTexture() {
         for (int x = 0; x < textureWidth; x++) {
             int index = (y * textureWidth + x) * 3;
 
-            // Yellow lines at visible positions (keeping our existing positions)
-            if (x >= yellowLinePosition - 2 && x <= yellowLinePosition + 2) { // Left edge
-                textureData[index] = 240;     // R
-                textureData[index + 1] = 240; // G
-                textureData[index + 2] = 0;   // B
-            }
-            else if (x >= textureWidth - yellowLinePosition - 2 && x <= textureWidth - yellowLinePosition + 2) { // Right edge
-                textureData[index] = 240;     // R
-                textureData[index + 1] = 240; // G
-                textureData[index + 2] = 0;   // B
-            }
-            // White dashed line in middle (keeping our existing pattern)
-            else if (x == textureWidth / 2 && y % 24 < 12) {
-                textureData[index] = 255;     // R
-                textureData[index + 1] = 255; // G
-                textureData[index + 2] = 255; // B
-            }
-            else {
-                // Base asphalt with better density from example
-                unsigned char gray = 60 + (rand() % 20); // More consistent base color
-                
-                // Road shine effect with better density
-                if (((x + y) % 64 < 3) && (rand() % 10 == 0)) {
-                    textureData[index] = 200;     // R
-                    textureData[index + 1] = 200; // G
-                    textureData[index + 2] = 200; // B
-                }
-                else {
-                    // Base asphalt color
-                    textureData[index] = gray;     // R
-                    textureData[index + 1] = gray; // G
-                    textureData[index + 2] = gray; // B
-                }
+            // Only draw asphalt and shine, no lines
+            unsigned char gray = 60 + (rand() % 20); // More consistent base color
+            if (((x + y) % 64 < 3) && (rand() % 10 == 0)) {
+                textureData[index] = 200;     // R
+                textureData[index + 1] = 200; // G
+                textureData[index + 2] = 200; // B
+            } else {
+                textureData[index] = gray;     // R
+                textureData[index + 1] = gray; // G
+                textureData[index + 2] = gray; // B
             }
         }
     }
@@ -264,29 +241,17 @@ void Level::drawRoad() {
 void Level::drawLaneLines() {
     // Add a small emergency margin beyond the yellow lines (like real roads)
     float emergencyMargin = 0.3f; // Increased margin
-    float yellowLinePosition = roadWidth - emergencyMargin;
+    float yellowLinePosition = roadWidth * 0.58f; // Changed from 0.5f to 0.6f to push lines outward
     
-    // Draw ONLY ONE SINGLE yellow line on each border edge
-    glColor3f(1.0f, 1.0f, 0.0f);
-    glLineWidth(8.0f); // Make the yellow lines thick and visible
-    glBegin(GL_LINES);
-    // Left border - ONE SINGLE LINE
-    glVertex3f(-yellowLinePosition, -roadLength, 0.02f);
-    glVertex3f(-yellowLinePosition, roadLength, 0.02f);
-    // Right border - ONE SINGLE LINE
-    glVertex3f(yellowLinePosition, -roadLength, 0.02f);
-    glVertex3f(yellowLinePosition, roadLength, 0.02f);
-    glEnd();
-    
-    // Add white dashed lines in the middle of the road
+    // Draw white dashed lines in the middle of the road
     glColor3f(1.0f, 1.0f, 1.0f); // Pure white
-    glLineWidth(5.0f); // Thick white lines
+    glLineWidth(6.0f); // Increased from 5.0f - Thicker white lines
     glBegin(GL_LINES);
     
     // Draw white dashed center line
-    float dashLength = 0.3f;
-    float gapLength = 0.4f;
-    float offset = fmod(roadOffset * 2.0f, dashLength + gapLength);
+    float dashLength = 0.5f;  // Increased from 0.3f - Longer dashes
+    float gapLength = 0.5f;   // Increased from 0.4f - Consistent spacing
+    float offset = fmod(-roadOffset * 5.0f, dashLength + gapLength); // Use same speed and direction as road texture
     
     for (float y = -roadLength; y < roadLength; ) {
         float yStart = y + offset;
@@ -300,8 +265,22 @@ void Level::drawLaneLines() {
     
     glEnd();
     
+    // Draw yellow border lines as single, continuous scrolling lines at the road edges
+    glColor3f(1.0f, 1.0f, 0.0f);
+    glLineWidth(8.0f); // Increased from 4.0f to make lines thicker
+    glBegin(GL_LINES);
+    float yellowOffset = fmod(-roadOffset * 5.0f, dashLength + gapLength);
+    // Left border
+    glVertex3f(-yellowLinePosition, -roadLength + yellowOffset, 0.0f);
+    glVertex3f(-yellowLinePosition, roadLength + yellowOffset, 0.0f);
+    // Right border
+    glVertex3f(yellowLinePosition, -roadLength + yellowOffset, 0.0f);
+    glVertex3f(yellowLinePosition, roadLength + yellowOffset, 0.0f);
+    glEnd();
+    
     glLineWidth(1.0f); // Reset
 }
+
 
 void Level::drawObstacles() {
     for (const auto& obstacle : obstacles) {
