@@ -1,0 +1,1618 @@
+#include "../include/Car.h"
+#include <cmath>
+#include <iostream>
+
+// Static members for shared enemy car texture
+Texture Car::enemyCarTexture;
+bool Car::enemyCarTextureLoaded = false;
+
+Car::Car() : x(0.0f), y(-1.6f), width(0.3f), height(0.3f),  // Position car at bottom
+             speed(3.0f), health(100.0f), score(0),
+             active(true), fireCooldown(FIRE_COOLDOWN), fireTimer(0.0f),
+             horizontalSpeed(0.0f), verticalSpeed(0.0f) {}
+
+Car::~Car() {}
+
+void Car::init() {
+    carTexture.loadFromFile("textures/car.png");
+}
+
+void Car::ensureEnemyCarTextureLoaded() {
+    if (!enemyCarTextureLoaded) {
+        if (enemyCarTexture.loadFromFile("textures/enemycar.png")) {
+            std::cout << "Loaded shared enemy car texture" << std::endl;
+        } else {
+            std::cout << "Failed to load shared enemy car texture!" << std::endl;
+        }
+        enemyCarTextureLoaded = true;
+    }
+}
+
+void Car::initAsEnemy() {
+    ensureEnemyCarTextureLoaded();
+    isEnemy = true;
+    verticalSpeed = 0.0f;
+    horizontalSpeed = 0.0f;
+}
+
+void Car::update(float deltaTime) {
+    // Calculate current position after potential movement
+    float newX = x + horizontalSpeed * deltaTime;
+    float newY = y + verticalSpeed * deltaTime;
+    
+    // Use the exact same emergency margin as in drawLaneLines
+    float emergencyMargin = 0.3f; // MUST match the value in Level::drawLaneLines
+    float yellowLinePosition = 4.5f - emergencyMargin;
+    
+    // Use the exact visual car dimensions
+    float carWidth = 0.2f; // The visual width of the car sprite
+    float safetyMargin = 0.1f; // Large safety margin to absolutely prevent crossing
+    
+    // Calculate exact bounds to strictly enforce yellow line boundaries
+    float leftBound = -yellowLinePosition + carWidth/2.0f + safetyMargin +1.5f;
+    float rightBound = yellowLinePosition - carWidth/2.0f - safetyMargin -1.5f;
+    
+    // Display boundary and position info when moving
+    if (horizontalSpeed != 0.0f) {
+        std::cout << "Car update - Current X: " << x << ", New X: " << newX 
+                  << ", leftBound: " << leftBound << ", rightBound: " << rightBound << std::endl;
+    }
+    
+    // Apply horizontal movement with strict boundaries
+    if (newX < leftBound) {
+        x = leftBound; // Clamp to left boundary
+        horizontalSpeed = 0.0f; // Stop horizontal movement
+    } else if (newX > rightBound) {
+        x = rightBound; // Clamp to right boundary
+        horizontalSpeed = 0.0f; // Stop horizontal movement
+    } else {
+        x = newX; // Apply movement normally
+    }
+    
+    // Apply vertical movement
+    float carHeight = 0.4f;
+    float bottomBound = -1.8f + carHeight/2.0f;
+    float topBound = -0.5f - carHeight/2.0f;
+    
+    if (newY < bottomBound) {
+        y = bottomBound;
+        verticalSpeed = 0.0f; // Stop vertical movement
+    } else if (newY > topBound) {
+        y = topBound;
+        verticalSpeed = 0.0f; // Stop vertical movement
+    } else {
+        y = newY;
+    }
+    
+    // Update fire cooldown
+    if (fireTimer > 0.0f) {
+        fireTimer -= deltaTime;
+    }
+
+    // Update projectiles
+    for (auto& projectile : projectiles) {
+        if (projectile.isActive) {
+            projectile.y += PROJECTILE_SPEED * deltaTime;
+            
+            if (rand() % 100 == 0) {
+                std::cout << "Projectile at (" << projectile.x << ", " << projectile.y << ")" << std::endl;
+            }
+            
+            if (projectile.y > 1.0f) {
+                projectile.isActive = false;
+                std::cout << "Projectile went off-screen" << std::endl;
+            }
+        }
+    }
+
+    // Remove inactive projectiles
+    size_t initialSize = projectiles.size();
+    projectiles.erase(
+        std::remove_if(projectiles.begin(), projectiles.end(),
+            [](const Projectile& p) { return !p.isActive; }),
+        projectiles.end()
+    );
+    
+    if (projectiles.size() < initialSize) {
+        std::cout << "Removed " << (initialSize - projectiles.size()) << " inactive projectiles" << std::endl;
+    }
+}
+
+void Car::render() const {
+    if (!active) return;
+
+    // Reset color to white before drawing the car with texture
+    glColor3f(1.0f, 1.0f, 1.0f);
+
+    // Draw car
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Use consistent sizing with obstacles but adjust for the 128x256 aspect ratio
+    float carWidth = 0.2f;  // Adjusted width 
+    float carHeight = 0.4f; // Adjusted height to match 128x256 aspect ratio
+    
+    // For visualization purposes, make enemy cars slightly smaller than player car
+    if (isEnemy) {
+        carWidth *= 0.8f;
+        carHeight *= 0.8f;
+        enemyCarTexture.bind();
+    } else {
+        carTexture.bind();
+    }
+
+    glBegin(GL_QUADS);
+    // Bottom-left
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex3f(x - carWidth/2.0f, y - carHeight/2.0f, 0.0f);
+    // Bottom-right
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex3f(x + carWidth/2.0f, y - carHeight/2.0f, 0.0f);
+    // Top-right
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex3f(x + carWidth/2.0f, y + carHeight/2.0f, 0.0f);
+    // Top-left
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex3f(x - carWidth/2.0f, y + carHeight/2.0f, 0.0f);
+    glEnd();
+
+    if (isEnemy) {
+        enemyCarTexture.unbind();
+    } else {
+        carTexture.unbind();
+    }
+    glDisable(GL_TEXTURE_2D);
+
+    // Render projectiles with more visible size and color
+    glColor3f(1.0f, 0.0f, 0.0f); // Bright red for better visibility
+    for (const auto& projectile : projectiles) {
+        if (projectile.isActive) {
+            // Draw a larger, more visible projectile
+            glBegin(GL_QUADS);
+            glVertex3f(projectile.x - 0.05f, projectile.y - 0.05f, 0.0f); // Larger size
+            glVertex3f(projectile.x + 0.05f, projectile.y - 0.05f, 0.0f);
+            glVertex3f(projectile.x + 0.05f, projectile.y + 0.05f, 0.0f);
+            glVertex3f(projectile.x - 0.05f, projectile.y + 0.05f, 0.0f);
+            glEnd();
+        }
+    }
+    glColor3f(1.0f, 1.0f, 1.0f); // Reset color
+}
+
+void Car::moveLeft() {
+    horizontalSpeed = -speed;
+}
+
+void Car::moveRight() {
+    horizontalSpeed = speed;
+}
+
+void Car::moveUp() {
+    verticalSpeed = speed;
+    std::cout << "Moving up. Current position: (" << x << ", " << y << ")" << std::endl;
+}
+
+void Car::moveDown() {
+    verticalSpeed = -speed;
+    std::cout << "Moving down. Current position: (" << x << ", " << y << ")" << std::endl;
+}
+
+void Car::stopHorizontal() {
+    horizontalSpeed = 0.0f;
+}
+
+void Car::stopVertical() {
+    verticalSpeed = 0.0f;
+}
+
+void Car::fire() {
+    if (fireTimer <= 0.0f) {
+        // Calculate the car height for projectile positioning
+        float carHeight = 0.4f;
+        
+        Projectile projectile;
+        projectile.x = x;
+        projectile.y = y + carHeight/2.0f + 0.05f; // Use the new car height
+        projectile.speed = PROJECTILE_SPEED;
+        projectile.isActive = true;
+        projectiles.push_back(projectile);
+        fireTimer = fireCooldown;
+        
+        std::cout << "Fired projectile at position (" << projectile.x << ", " << projectile.y << ")" << std::endl;
+    }
+}
+
+bool Car::checkCollision(float x, float y, float width, float height) const {
+    // Calculate car dimensions based on whether it's the player or enemy car
+    float carWidth = 0.2f;
+    float carHeight = 0.4f;
+    
+    // Enemy cars are smaller (same logic as in render)
+    if (verticalSpeed == 0.0f && horizontalSpeed == 0.0f) {
+        carWidth *= 0.8f;
+        carHeight *= 0.8f;
+    }
+    
+    // Check for intersection using the calculated dimensions
+    return (this->x + carWidth/2.0f > x - width/2.0f &&
+            this->x - carWidth/2.0f < x + width/2.0f &&
+            this->y + carHeight/2.0f > y - height/2.0f &&
+            this->y - carHeight/2.0f < y + height/2.0f);
+}
+
+bool Car::checkProjectileCollision(float x, float y, float width, float height) const {
+    // Projectile size should match the rendered size (0.05f)
+    const float PROJECTILE_SIZE = 0.05f;
+    
+    for (auto& projectile : const_cast<std::vector<Projectile>&>(projectiles)) {
+        if (projectile.isActive &&
+            projectile.x + PROJECTILE_SIZE > x - width/2.0f &&
+            projectile.x - PROJECTILE_SIZE < x + width/2.0f &&
+            projectile.y + PROJECTILE_SIZE > y - height/2.0f &&
+            projectile.y - PROJECTILE_SIZE < y + height/2.0f) {
+            // Deactivate the projectile when it hits something
+            projectile.isActive = false;
+            std::cout << "Projectile hit at position (" << projectile.x << ", " << projectile.y << ")" << std::endl;
+            return true;
+        }
+    }
+    return false;
+}
+
+void Car::takeDamage(float amount) {
+    health -= amount;
+    if (health <= 0.0f) {
+        active = false;
+    }
+}
+
+void Car::addScore(int points) {
+    score += points;
+}
+
+float Car::getHealth() const {
+    return health;
+}
+
+int Car::getScore() const {
+    return score;
+}
+
+float Car::getX() const {
+    return x;
+}
+
+float Car::getY() const {
+    return y;
+}
+
+float Car::getWidth() const {
+    return width;
+}
+
+float Car::getHeight() const {
+    return height;
+}
+
+float Car::getSpeed() const {
+    return speed;
+}
+
+bool Car::isActive() const {
+    return active;
+}
+
+void Car::setX(float x) {
+    this->x = x;
+}
+
+void Car::setY(float y) {
+    this->y = y;
+}
+
+void Car::setSpeed(float speed) {
+    this->speed = speed;
+}
+
+void Car::setActive(bool active) {
+    this->active = active;
+}
+
+const std::vector<Car::Projectile>& Car::getProjectiles() const {
+    return projectiles;
+}
+#include "../include/Level.h"
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <iostream>
+#include <fstream>
+
+const float MIN_SCROLL_SPEED = 0.3f;
+const float MAX_SCROLL_SPEED = 2.0f;
+const float LEVEL_1_SPEED = 0.5f; // Increased from 0.2f for faster start
+const float LEVEL_2_SPEED = 1.0f; // Increased from 0.8f
+const float LEVEL_3_SPEED = 1.6f; // Kept same
+const float SPEED_INCREASE_PER_SEC = 0.04f; // How fast the speed ramps up (tweak as desired)
+
+// Add to the top of the file after includes
+const char* HIGH_SCORE_FILE = "highscore.txt";
+
+// Add at the top with other constants
+const int INITIAL_SCORE = 100;
+const int LEVEL_UP_MULTIPLIER = 2; // Double score for next level
+const float SCORE_PER_SECOND = 1.0f; // 1 point per second
+const float SPEED_SCORE_MULTIPLIER = 0.5f; // Additional points based on speed
+
+// Add obstacle spawn timing constants
+const float INITIAL_OBSTACLE_SPAWN_INTERVAL = 1.0f; // Spawn every 2 seconds at start
+const float MIN_OBSTACLE_SPAWN_INTERVAL = 0.1f; // Minimum spawn interval
+const float OBSTACLE_SPAWN_SPEED_FACTOR = 0.5f; // How much speed affects spawn rate
+
+Level::Level() : roadWidth(4.5f), roadLength(20.0f), scrollSpeed(LEVEL_1_SPEED),
+                score(INITIAL_SCORE), level(1), levelTimer(0.0f),
+                obstacleSpawnTimer(0.0f), enemySpawnTimer(0.0f),
+                roadOffset(0.0f), roadTextureId(0), scoreTimer(0.0f),
+                highScore(0) {
+    srand(static_cast<unsigned int>(time(nullptr)));
+    loadHighScore();
+    
+    // // Spawn initial obstacles immediately
+    // spawnObstacle();
+    // spawnObstacle(); // Spawn two obstacles to start with
+    // obstacleSpawnTimer = INITIAL_OBSTACLE_SPAWN_INTERVAL; // Reset timer to start counting from now
+}
+
+Level::~Level() {
+    // Clean up the road texture
+    if (roadTextureId != 0) {
+        glDeleteTextures(1, &roadTextureId);
+    }
+}
+
+void Level::loadHighScore() {
+    std::ifstream file(HIGH_SCORE_FILE);
+    if (file.is_open()) {
+        file >> highScore;
+        file.close();
+    }
+}
+
+void Level::saveHighScore() {
+    std::ofstream file(HIGH_SCORE_FILE);
+    if (file.is_open()) {
+        file << highScore;
+        file.close();
+    }
+}
+
+void Level::createRoadTexture() {
+    const int textureWidth = ROAD_TEXTURE_SIZE;
+    const int textureHeight = ROAD_TEXTURE_SIZE;
+    unsigned char* textureData = new unsigned char[textureWidth * textureHeight * 3];
+
+    // Create simple black/gray road texture
+    for (int y = 0; y < textureHeight; y++) {
+        for (int x = 0; x < textureWidth; x++) {
+            int index = (y * textureWidth + x) * 3;
+            // Base dark gray color
+            unsigned char gray = 40 + (rand() % 10); // Dark gray with slight variation
+            textureData[index] = gray;     // R
+            textureData[index + 1] = gray; // G
+            textureData[index + 2] = gray; // B
+        }
+    }
+
+    /* Original texture generation code (commented out for easy reversion)
+    // Calculate where the yellow lines should be in the texture - matching drawLaneLines
+    float emergencyMarginRatio = 0.3f / roadWidth; // Match the larger margin in drawLaneLines
+    // Place yellow lines slightly inward from the edges to ensure visibility
+    int yellowLinePosition = static_cast<int>(textureWidth * 0.2f); // 10% from edge
+    
+    // Create road texture pattern with much more detailed asphalt
+    for (int y = 0; y < textureHeight; y++) {
+        for (int x = 0; x < textureWidth; x++) {
+            int index = (y * textureWidth + x) * 3;
+
+            // Only draw asphalt and shine, no lines
+            unsigned char gray = 60 + (rand() % 20); // More consistent base color
+            if (((x + y) % 64 < 3) && (rand() % 10 == 0)) {
+                textureData[index] = 200;     // R
+                textureData[index + 1] = 200; // G
+                textureData[index + 2] = 200; // B
+            } else {
+                textureData[index] = gray;     // R
+                textureData[index + 1] = gray; // G
+                textureData[index + 2] = gray; // B
+            }
+        }
+    }
+    */
+
+    // Generate texture
+    glGenTextures(1, &roadTextureId);
+    glBindTexture(GL_TEXTURE_2D, roadTextureId);
+
+    // Set texture parameters for better quality
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    // Upload texture data
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, textureData);
+    
+    // Generate mipmaps for better quality at different distances
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    delete[] textureData;
+}
+
+void Level::init() {
+    // Create the procedural road texture
+    createRoadTexture();
+    
+    // Load textures for obstacles
+    barrierTexture.loadFromFile("textures/barricade.png");
+    coneTexture.loadFromFile("textures/cone.png");
+    rockTexture.loadFromFile("textures/rock.png");
+    treeTexture.loadFromFile("textures/tree.png");
+    enemyCarTexture.loadFromFile("textures/enemycar.png");
+}
+
+void Level::update(float deltaTime, Car& playerCar) {
+    levelTimer += deltaTime;
+    obstacleSpawnTimer += deltaTime;
+    enemySpawnTimer += deltaTime;
+
+    // Progressive speed increase
+    if (scrollSpeed < MAX_SCROLL_SPEED) {
+        float speedIncrease = SPEED_INCREASE_PER_SEC * deltaTime;
+        if (scrollSpeed > 1.0f) {
+            speedIncrease *= 0.5f;
+        }
+        scrollSpeed += speedIncrease;
+        if (scrollSpeed > MAX_SCROLL_SPEED) scrollSpeed = MAX_SCROLL_SPEED;
+    }
+
+    // Update road offset for scrolling
+    roadOffset += scrollSpeed * deltaTime;
+    if (roadOffset > 1.0f) {
+        roadOffset -= 1.0f;
+    }
+
+    // Update obstacles with current speed
+    for (auto& obstacle : obstacles) {
+        obstacle.y -= scrollSpeed * deltaTime;
+        if (obstacle.y < -roadLength) {
+            obstacle.isActive = false;
+        }
+    }
+
+    // Update enemy cars - make them move twice as fast as obstacles
+    for (auto& enemy : enemyCars) {
+        if (enemy.isActive()) {
+            enemy.setY(enemy.getY() - (scrollSpeed * 2.0f) * deltaTime);
+            if (enemy.getY() < -roadLength) {
+                enemy.setActive(false);
+            }
+        }
+    }
+
+    // Spawn new obstacles with speed-based timing
+    float obstacleSpawnInterval = std::max(MIN_OBSTACLE_SPAWN_INTERVAL, 
+                                         INITIAL_OBSTACLE_SPAWN_INTERVAL - (scrollSpeed * OBSTACLE_SPAWN_SPEED_FACTOR));
+    if (obstacleSpawnTimer >= obstacleSpawnInterval) {
+        spawnObstacle();
+        obstacleSpawnTimer = 0.0f;
+    }
+
+    // Spawn new enemy cars with speed-based timing
+    float baseEnemyInterval = 4.0f; // Reduced from 6.0f
+    float enemySpawnInterval = baseEnemyInterval / scrollSpeed;
+    if (enemySpawnTimer >= enemySpawnInterval) {
+        spawnEnemyCar();
+        enemySpawnTimer = 0.0f;
+    }
+
+    // Update score based on time and speed
+    updateTimerScore(deltaTime);
+    
+    // Update level when score doubles
+    int nextLevelScore = INITIAL_SCORE * static_cast<int>(std::pow(LEVEL_UP_MULTIPLIER, level));
+    if (score >= nextLevelScore) {
+        level++;
+    }
+    
+    // Check collisions
+    checkCollisions(playerCar);
+
+    // Update high score if needed
+    if (score > highScore) {
+        highScore = score;
+        saveHighScore();
+    }
+}
+
+void Level::updateTimerScore(float deltaTime) {
+    scoreTimer += deltaTime;
+    if (scoreTimer >= 1.0f) { // Update score every second
+        // Base score increases with time
+        int baseScore = static_cast<int>(SCORE_PER_SECOND);
+        // Additional points based on speed
+        int speedBonus = static_cast<int>(scrollSpeed * SPEED_SCORE_MULTIPLIER);
+        score += baseScore + speedBonus;
+        scoreTimer = 0.0f;
+    }
+}
+
+void Level::render() {
+    drawRoad();
+    drawObstacles();
+
+    // Render enemy cars
+    for (auto& enemy : enemyCars) {
+        if (enemy.isActive()) {
+            enemy.render();
+        }
+    }
+}
+
+void Level::drawRoad() {
+    // Draw the base road
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, roadTextureId);
+
+    glColor3f(1.0f, 1.0f, 1.0f);  // Reset color to white for proper texture rendering
+    glBegin(GL_QUADS);
+    // Bottom-left
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex3f(-roadWidth, -roadLength, -0.1f);
+    // Bottom-right
+    glTexCoord2f(1.0f, 0.0f);  // Changed from 3.0f to 1.0f to use the texture once
+    glVertex3f(roadWidth, -roadLength, -0.1f);
+    // Top-right
+    glTexCoord2f(1.0f, roadOffset * 5.0f);  // Changed from 3.0f to 1.0f
+    glVertex3f(roadWidth, roadLength, -0.1f);
+    // Top-left
+    glTexCoord2f(0.0f, roadOffset * 5.0f);
+    glVertex3f(-roadWidth, roadLength, -0.1f);
+    glEnd();
+
+    glDisable(GL_TEXTURE_2D);
+
+    // Draw lane lines
+    drawLaneLines();
+}
+
+void Level::drawLaneLines() {
+    // Add a small emergency margin beyond the yellow lines (like real roads)
+    float emergencyMargin = 0.3f; // Increased margin
+    float yellowLinePosition = roadWidth * 0.58f; // Changed from 0.5f to 0.6f to push lines outward
+    
+    // Draw white dashed lines in the middle of the road
+    glColor3f(1.0f, 1.0f, 1.0f); // Pure white
+    glLineWidth(6.0f); // Increased from 5.0f - Thicker white lines
+    glBegin(GL_LINES);
+    
+    // Draw white dashed center line
+    float dashLength = 0.5f;  // Increased from 0.3f - Longer dashes
+    float gapLength = 0.5f;   // Increased from 0.4f - Consistent spacing
+    float offset = fmod(-roadOffset * 5.0f, dashLength + gapLength); // Use same speed and direction as road texture
+    
+    for (float y = -roadLength; y < roadLength; ) {
+        float yStart = y + offset;
+        float yEnd = yStart + dashLength;
+        if (yStart < roadLength) {
+            glVertex3f(0.0f, yStart, -0.05f);
+            glVertex3f(0.0f, std::min(yEnd, roadLength), -0.05f);
+        }
+        y += dashLength + gapLength;
+    }
+    
+    glEnd();
+    
+    // Draw yellow border lines as single, continuous scrolling lines at the road edges
+    glColor3f(1.0f, 1.0f, 0.0f);
+    glLineWidth(8.0f); // Increased from 4.0f to make lines thicker
+    glBegin(GL_LINES);
+    float yellowOffset = fmod(-roadOffset * 5.0f, dashLength + gapLength);
+    // Left border
+    glVertex3f(-yellowLinePosition, -roadLength + yellowOffset, 0.0f);
+    glVertex3f(-yellowLinePosition, roadLength + yellowOffset, 0.0f);
+    // Right border
+    glVertex3f(yellowLinePosition, -roadLength + yellowOffset, 0.0f);
+    glVertex3f(yellowLinePosition, roadLength + yellowOffset, 0.0f);
+    glEnd();
+    
+    glLineWidth(1.0f); // Reset
+}
+
+
+void Level::drawObstacles() {
+    for (const auto& obstacle : obstacles) {
+        if (!obstacle.isActive) continue;
+
+        glEnable(GL_TEXTURE_2D);
+        switch (obstacle.type) {
+            case ObstacleType::BARRIER:
+                barrierTexture.bind();
+                break;
+            case ObstacleType::CONE:
+                coneTexture.bind();
+                break;
+            case ObstacleType::ROCK:
+                rockTexture.bind();
+                break;
+            case ObstacleType::TREE:
+                treeTexture.bind();
+                break;
+            default:
+                break;
+        }
+
+        // Since all textures are 256x256, we can use a scale of 1.0f
+        float scale = 1.0f;
+
+        // Draw obstacle with texture coordinates to correctly orient the texture
+        glBegin(GL_QUADS);
+        // Bottom-left
+        glTexCoord2f(0.0f, 0.0f);
+        glVertex3f(obstacle.x - obstacle.width/2.0f * scale, obstacle.y - obstacle.height/2.0f * scale, 0.0f);
+        // Bottom-right
+        glTexCoord2f(1.0f, 0.0f);
+        glVertex3f(obstacle.x + obstacle.width/2.0f * scale, obstacle.y - obstacle.height/2.0f * scale, 0.0f);
+        // Top-right
+        glTexCoord2f(1.0f, 1.0f);
+        glVertex3f(obstacle.x + obstacle.width/2.0f * scale, obstacle.y + obstacle.height/2.0f * scale, 0.0f);
+        // Top-left
+        glTexCoord2f(0.0f, 1.0f);
+        glVertex3f(obstacle.x - obstacle.width/2.0f * scale, obstacle.y + obstacle.height/2.0f * scale, 0.0f);
+        glEnd();
+
+        glDisable(GL_TEXTURE_2D);
+    }
+}
+
+void Level::spawnObstacle() {
+    Obstacle obstacle;
+    
+    // Use the same emergency margin as in drawLaneLines
+    float emergencyMargin = 0.3f; // MATCH THE VALUE in drawLaneLines()
+    float yellowLinePosition = roadWidth - emergencyMargin;
+    
+    // Use the same boundary calculations as the car
+    float safetyMargin = 0.1f;
+    float obstacleWidth = 0.3f; // Use the largest obstacle width
+    
+    // Calculate spawn boundaries to match car movement bounds
+    float leftBound = -yellowLinePosition + obstacleWidth/2.0f + safetyMargin + 1.5f;
+    float rightBound = yellowLinePosition - obstacleWidth/2.0f - safetyMargin - 1.5f;
+    
+    obstacle.x = leftBound + static_cast<float>(rand()) / RAND_MAX * (rightBound - leftBound);
+    obstacle.y = roadLength;
+    obstacle.isActive = true;
+
+    // Randomly select obstacle type and set dimensions
+    int type = rand() % 4;
+    switch (type) {
+        case 0:
+            obstacle.type = ObstacleType::BARRIER;
+            obstacle.width = 0.3f;
+            obstacle.height = 0.3f;
+            break;
+        case 1:
+            obstacle.type = ObstacleType::CONE;
+            obstacle.width = 0.2f;
+            obstacle.height = 0.2f;
+            break;
+        case 2:
+            obstacle.type = ObstacleType::ROCK;
+            obstacle.width = 0.25f;
+            obstacle.height = 0.25f;
+            break;
+        case 3:
+            obstacle.type = ObstacleType::TREE;
+            obstacle.width = 0.25f;
+            obstacle.height = 0.25f;
+            break;
+    }
+
+    obstacles.push_back(obstacle);
+}
+
+void Level::spawnEnemyCar() {
+    Car enemy;
+    
+    // Use the same emergency margin as in drawLaneLines
+    float emergencyMargin = 0.3f; // MATCH THE VALUE in drawLaneLines()
+    float yellowLinePosition = roadWidth - emergencyMargin;
+    
+    // Use the same boundary calculations as the car
+    float safetyMargin = 0.1f;
+    float enemyCarWidth = 0.2f;
+    
+    // Calculate spawn boundaries to match car movement bounds
+    float leftBound = -yellowLinePosition + enemyCarWidth/2.0f + safetyMargin + 1.5f;
+    float rightBound = yellowLinePosition - enemyCarWidth/2.0f - safetyMargin - 1.5f;
+    
+    enemy.setX(leftBound + static_cast<float>(rand()) / RAND_MAX * (rightBound - leftBound));
+    enemy.setY(roadLength); // Start at the top of the road
+    
+    // Set the enemy car to move downward at a speed relative to current road speed
+    // Make enemy cars slightly faster than the road to increase challenge
+    float enemySpeed = scrollSpeed * 1.5f; // 50% faster than road speed
+    enemy.setSpeed(enemySpeed);
+    enemy.setActive(true);
+    
+    // Initialize the enemy car with the enemy car texture
+    enemy.initAsEnemy();
+    
+    // Add to enemy cars vector
+    enemyCars.push_back(enemy);
+}
+
+void Level::checkCollisions(Car& playerCar) {
+    // Check obstacle collisions
+    for (auto& obstacle : obstacles) {
+        if (!obstacle.isActive) continue;
+
+        if (playerCar.checkCollision(obstacle.x, obstacle.y, obstacle.width, obstacle.height)) {
+            obstacle.isActive = false;
+            playerCar.takeDamage(25.0f);
+            if (playerCar.getHealth() <= 0.0f) {
+                // Game over
+                return;
+            }
+        }
+    }
+
+    // Check enemy car collisions
+    for (auto& enemy : enemyCars) {
+        if (!enemy.isActive()) continue;
+
+        if (playerCar.checkCollision(enemy.getX(), enemy.getY(), enemy.getWidth(), enemy.getHeight())) {
+            enemy.setActive(false);
+            playerCar.takeDamage(playerCar.getHealth()); // Set health to 0 (game over)
+            return;
+        }
+    }
+
+    // Check projectile collisions with obstacles
+    for (auto& obstacle : obstacles) {
+        if (!obstacle.isActive) continue;
+
+        // Get projectile collision directly from player car
+        // This will deactivate the projectile if it hits
+        if (playerCar.checkProjectileCollision(obstacle.x, obstacle.y, obstacle.width, obstacle.height)) {
+            // If collision detected, deactivate obstacle and add score
+            obstacle.isActive = false;
+            score += OBSTACLE_POINTS; // Add points for destroying an obstacle
+            std::cout << "Obstacle hit! Score: " << score << std::endl; // Debug output
+        }
+    }
+
+    // Check projectile collisions with enemy cars
+    for (auto& enemy : enemyCars) {
+        if (!enemy.isActive()) continue;
+
+        if (playerCar.checkProjectileCollision(enemy.getX(), enemy.getY(), enemy.getWidth(), enemy.getHeight())) {
+            enemy.setActive(false);
+            score += 50; // Add 50 points for destroying an enemy car
+            std::cout << "Enemy car hit! Score: " << score << std::endl; // Debug output
+        }
+    }
+}
+
+void Level::updateLevel() {
+    // Only update level number for display/logic, not for speed
+    int newLevel = 1; // Default to level 1
+    if (score >= LEVEL_3_SCORE) {
+        newLevel = 3;
+    } else if (score >= LEVEL_2_SCORE) {
+        newLevel = 2;
+    } else if (score >= LEVEL_1_SCORE) {
+        newLevel = 1;
+    }
+    level = newLevel;
+}
+
+bool Level::isComplete() const {
+    return false; // Game continues indefinitely
+}
+
+int Level::getScore() const {
+    return score;
+}
+
+int Level::getLevel() const {
+    return level;
+}
+
+int Level::getHighScore() const {
+    return highScore;
+}
+
+void Level::reset() {
+    obstacles.clear();
+    enemyCars.clear();
+    score = INITIAL_SCORE; // Reset to initial score
+    level = 1;
+    scrollSpeed = LEVEL_1_SPEED;
+    levelTimer = 0.0f;
+    obstacleSpawnTimer = 0.0f;
+    enemySpawnTimer = 0.0f;
+    roadOffset = 0.0f;
+    scoreTimer = 0.0f;
+} 
+#include "../include/Texture.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "../include/stb_image.h"
+#include <iostream>
+
+Texture::Texture() : textureID(0), width(0), height(0), channels(0) {
+}
+
+Texture::~Texture() {
+    if (textureID) {
+        glDeleteTextures(1, &textureID);
+    }
+}
+
+bool Texture::loadFromFile(const std::string& filename) {
+    stbi_set_flip_vertically_on_load(true); // Ensure images are loaded with OpenGL's expected orientation
+    unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 0);
+    if (!data) {
+        std::cerr << "Failed to load texture: " << filename << std::endl;
+        return false;
+    }
+
+    std::cout << "Loaded texture " << filename << " with " << channels << " channels" << std::endl;
+
+    // Generate and bind texture
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    // Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Upload texture data - properly handle various color formats
+    GLenum format;
+    if (channels == 4) {
+        format = GL_RGBA;
+        std::cout << "Using RGBA format for " << filename << std::endl;
+    } else if (channels == 3) {
+        format = GL_RGB;
+        std::cout << "Using RGB format for " << filename << std::endl;
+    } else if (channels == 1) {
+        format = GL_RED;
+        std::cout << "Using RED format for " << filename << std::endl;
+    } else {
+        format = GL_RGB;
+        std::cout << "Using default RGB format for " << filename << " (unexpected channel count: " << channels << ")" << std::endl;
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+
+    // Free image data
+    stbi_image_free(data);
+
+    return true;
+}
+
+void Texture::bind() const {
+    glBindTexture(GL_TEXTURE_2D, textureID);
+}
+
+void Texture::unbind() const {
+    glBindTexture(GL_TEXTURE_2D, 0);
+} 
+#include <iostream>
+#include <Windows.h>
+#include <GL\glew.h>
+#include <GL\freeglut.h>
+#include <vector>
+#include <string>
+#include <ctime>
+#include "include/Car.h"
+#include "include/Level.h"
+#include "include/Texture.h"
+
+// Game constants
+const int WINDOW_WIDTH = 800;
+const int WINDOW_HEIGHT = 600;
+const float ASPECT_RATIO = static_cast<float>(WINDOW_WIDTH) / WINDOW_HEIGHT;
+
+// Game state
+enum class GameState {
+    MENU,
+    PLAYING,
+    PAUSED,
+    GAME_OVER
+};
+
+// Global game objects
+GameState currentState = GameState::MENU;
+Car playerCar;
+Level currentLevel;
+float deltaTime = 0.0f;
+float lastTime = 0.0f;
+int menuIndex = 0;
+const int MENU_ITEMS = 2;
+const char* menuOptions[MENU_ITEMS] = { "New Game", "Exit" };
+
+// Function declarations
+void init();
+void startNewGame();
+void renderText(float x, float y, const char* text);
+void renderMenu();
+void renderGameOver();
+void renderPause();
+void renderGame();
+void display();
+void update(int value);
+void keyboard(unsigned char key, int x, int y);
+void keyboardUp(unsigned char key, int x, int y);
+void reshape(int w, int h);
+void specialKeys(int key, int x, int y);
+void specialKeysUp(int key, int x, int y);
+
+int main(int argc, char** argv) {
+    // Initialize GLUT
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+    
+    // Get screen dimensions
+    int screenWidth = glutGet(GLUT_SCREEN_WIDTH);
+    int screenHeight = glutGet(GLUT_SCREEN_HEIGHT);
+    
+    // Create full screen window
+    glutInitWindowSize(screenWidth, screenHeight);
+    glutCreateWindow("Need for Speed Infinity");
+    glutFullScreen(); // Make window full screen
+    
+    // Initialize GLEW
+    GLenum err = glewInit();
+    if (err != GLEW_OK) {
+        std::cerr << "Error initializing GLEW: " << glewGetErrorString(err) << std::endl;
+        return 1;
+    }
+
+    // Initialize game
+    init();
+
+    // Set up callbacks
+    glutDisplayFunc(display);
+    glutKeyboardFunc(keyboard);
+    glutKeyboardUpFunc(keyboardUp);
+    glutSpecialFunc(specialKeys);
+    glutSpecialUpFunc(specialKeysUp);
+    glutReshapeFunc(reshape);
+    glutTimerFunc(16, update, 0); // ~60 FPS
+
+    // Start main loop
+    glutMainLoop();
+
+    return 0;
+}
+
+void init() {
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearDepth(1.0f);
+    glDepthFunc(GL_LESS);
+    lastTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+    playerCar.init();
+    currentLevel.init();
+    currentState = GameState::PLAYING;
+}
+
+void startNewGame() {
+    playerCar.~Car();
+    new (&playerCar) Car();
+    playerCar.init();
+
+    currentLevel.~Level();
+    new (&currentLevel) Level();
+    currentLevel.init();
+
+    currentState = GameState::PLAYING;
+}
+
+void renderText(float x, float y, const char* text) {
+    glRasterPos2f(x, y);
+    for (const char* c = text; *c != '\0'; c++) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, *c);
+    }
+}
+
+void renderMenu() {
+    // Ensure menuIndex is within bounds
+    if (menuIndex < 0 || menuIndex >= MENU_ITEMS) {
+        menuIndex = 0; // Reset to a valid index
+    }
+
+    // Title
+    glColor3f(1.0f, 0.5f, 0.0f); // Orange color for title
+    renderText(-0.3f, 0.6f, "NEED FOR SPEED");
+    renderText(-0.2f, 0.5f, "INFINITY");
+    
+    // Separator line
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glLineWidth(2.0f);
+    glBegin(GL_LINES);
+    glVertex2f(-0.5f, 0.45f);
+    glVertex2f(0.5f, 0.45f);
+    glEnd();
+
+    // Display high score with golden color
+    glColor3f(1.0f, 0.84f, 0.0f); // Gold color
+    char highScoreText[32];
+    try {
+        snprintf(highScoreText, sizeof(highScoreText), "Best Score: %d", currentLevel.getHighScore());
+    } catch (const std::exception& e) {
+        snprintf(highScoreText, sizeof(highScoreText), "Best Score: N/A");
+    }
+    renderText(-0.2f, 0.35f, highScoreText);
+    
+    // Menu items with better spacing and highlighting
+    const float menuStartY = 0.1f;
+    const float menuSpacing = 0.15f;
+    
+    for (int i = 0; i < MENU_ITEMS; ++i) {
+        float y = menuStartY - i * menuSpacing;
+        
+        // Draw selection marker
+        if (i == menuIndex) {
+            glColor3f(1.0f, 1.0f, 0.0f); // Yellow for selected item
+            renderText(-0.25f, y, "> ");
+            renderText(0.2f, y, " <");
+        } else {
+            glColor3f(0.7f, 0.7f, 0.7f); // Grey for unselected items
+        }
+        
+        // Center the menu item text
+        float textWidth = strlen(menuOptions[i]) * 0.02f; // Approximate width per character
+        float x = -textWidth;
+        renderText(x, y, menuOptions[i]);
+    }
+    
+    // Separator line
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glLineWidth(2.0f);
+    glBegin(GL_LINES);
+    glVertex2f(-0.5f, -0.1f);
+    glVertex2f(0.5f, -0.1f);
+    glEnd();
+    
+    // Controls info at bottom
+    glColor3f(0.5f, 0.5f, 1.0f); // Light blue for controls
+    renderText(-0.45f, -0.3f, "Controls:");
+    glColor3f(0.7f, 0.7f, 0.7f); // Grey for control text
+    renderText(-0.45f, -0.4f, "Arrow Keys - Move    Space - Fire");
+    renderText(-0.45f, -0.5f, "P - Pause    ESC - Exit");
+}
+
+void renderGameOver() {
+    glColor3f(1.0f, 0.0f, 0.0f);
+    renderText(-0.2f, 0.2f, "GAME OVER");
+    char scoreText[32];
+    snprintf(scoreText, sizeof(scoreText), "Score: %d", currentLevel.getScore());
+    renderText(-0.1f, 0.0f, scoreText);
+    renderText(-0.3f, -0.2f, "Press SPACE for menu");
+}
+
+void renderPause() {
+    // Set up orthographic projection for 2D rendering
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0); // Orthographic projection covering the screen
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    // Disable depth testing to ensure the background is always visible
+    glDisable(GL_DEPTH_TEST);
+
+    // Draw translucent dark blue background
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(0.0f, 0.0f, 0.5f, 0.5f); // Dark blue with 50% transparency
+    glBegin(GL_QUADS);
+    glVertex2f(-1.0f, 1.0f);  // Top-left corner
+    glVertex2f(1.0f, 1.0f);   // Top-right corner
+    glVertex2f(1.0f, -1.0f);  // Bottom-right corner
+    glVertex2f(-1.0f, -1.0f); // Bottom-left corner
+    glEnd();
+    glDisable(GL_BLEND);
+
+    // Render pause text on top
+    glColor3f(1.0f, 1.0f, 0.0f); // Yellow color for text
+    renderText(-0.035f, 0.0f, "PAUSED");
+    renderText(-0.08f, -0.5f, "Press P to resume");
+
+    // Restore depth testing
+    glEnable(GL_DEPTH_TEST);
+
+    // Restore previous projection and modelview matrices
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
+void renderGame() {
+    // Render level
+    currentLevel.render();
+    
+    // Render player car
+    playerCar.render();
+    
+    // Save current matrix and disable depth test temporarily for HUD
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    
+    // Use orthographic projection for HUD
+    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+    
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    
+    // Disable depth test for HUD elements
+    glDisable(GL_DEPTH_TEST);
+    
+    // Draw HUD text with better positioning and formatting
+    char scoreText[32], highScoreText[32], healthText[32], levelText[32];
+    sprintf_s(scoreText, "Score: %d", currentLevel.getScore());
+    sprintf_s(highScoreText, "Best: %d", currentLevel.getHighScore());
+    sprintf_s(healthText, "HP: %.0f%%", playerCar.getHealth());
+    sprintf_s(levelText, "Level: %d", currentLevel.getLevel());
+    
+    // Calculate the same boundaries as car movement
+    float emergencyMargin = 0.3f;
+    float yellowLinePosition = 4.5f - emergencyMargin; // 4.5f is roadWidth
+    float safetyMargin = 0.1f;
+    float carWidth = 0.2f;
+    float leftBound = -yellowLinePosition + carWidth/2.0f + safetyMargin + 1.5f;
+    float rightBound = yellowLinePosition - carWidth/2.0f - safetyMargin - 1.5f;
+    
+    // Convert road bounds to screen coordinates (approximately)
+    float screenLeftBound = leftBound / 4.5f;  // Normalize by roadWidth
+    float screenRightBound = rightBound / 4.5f;
+    
+    // Position all elements in one line with even spacing
+    float totalWidth = screenRightBound - screenLeftBound;
+    float spacing = totalWidth / 4.0f;  // Divide space into 4 sections
+    
+    // Score (leftmost)
+    glColor3f(1.0f, 1.0f, 1.0f);  // White text for score
+    renderText(screenLeftBound, 0.9f, scoreText);
+    
+    // High Score
+    glColor3f(1.0f, 0.84f, 0.0f);  // Gold color for high score
+    renderText(screenLeftBound + spacing, 0.9f, highScoreText);
+    
+    // Level
+    glColor3f(0.0f, 1.0f, 1.0f);  // Cyan for level
+    renderText(screenLeftBound + spacing * 2.5f, 0.9f, levelText);
+    
+    // Health (rightmost)
+    float healthPercent = playerCar.getHealth();
+    if (healthPercent > 60.0f) {
+        glColor3f(0.0f, 1.0f, 0.0f);  // Green for good health
+    } else if (healthPercent > 30.0f) {
+        glColor3f(1.0f, 1.0f, 0.0f);  // Yellow for medium health
+    } else {
+        glColor3f(1.0f, 0.0f, 0.0f);  // Red for low health
+    }
+    renderText(screenLeftBound + spacing * 3.5, 0.9f, healthText);
+    
+    // Restore settings
+    glEnable(GL_DEPTH_TEST);
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
+void display() {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    // Get current window dimensions
+    int w = glutGet(GLUT_WINDOW_WIDTH);
+    int h = glutGet(GLUT_WINDOW_HEIGHT);
+    float aspectRatio = (float)w / (float)h;
+    
+    // Set up projection matrix to maintain proper aspect ratio
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    
+    // Use an orthographic projection with aspect ratio correction
+    // Scale the view to maintain the same relative sizes
+    float scale = 1.0f;
+    if (w > h) {
+        scale = (float)h / (float)w;
+        gluOrtho2D(-1.0f * aspectRatio, 1.0f * aspectRatio, -1.0f, 1.0f);
+    } else {
+        scale = (float)w / (float)h;
+        gluOrtho2D(-1.0f, 1.0f, -1.0f / aspectRatio, 1.0f / aspectRatio);
+    }
+    
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    
+    // Apply scaling to maintain consistent sizes
+    glScalef(scale, scale, 1.0f);
+    
+    // Render based on current state
+    switch (currentState) {
+        case GameState::MENU:
+            renderMenu();
+            break;
+        case GameState::PLAYING:
+            renderGame();
+            break;
+        case GameState::PAUSED:
+            renderGame();
+            renderPause();
+            break;
+        case GameState::GAME_OVER:
+            renderGameOver();
+            break;
+    }
+    
+    glutSwapBuffers();
+}
+
+void update(int value) {
+    float currentTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+    deltaTime = currentTime - lastTime;
+    lastTime = currentTime;
+    
+    if (currentState == GameState::PLAYING) {
+        playerCar.update(deltaTime);
+        currentLevel.update(deltaTime, playerCar);
+        currentLevel.checkCollisions(playerCar);
+        if (playerCar.getHealth() <= 0) {
+            currentState = GameState::GAME_OVER;
+        }
+    }
+    
+    glutPostRedisplay();
+    glutTimerFunc(16, update, 0);
+}
+
+void keyboard(unsigned char key, int x, int y) {
+    if (currentState == GameState::MENU) {
+        if (key == 13) { // Enter
+            if (menuIndex == 0) {
+                startNewGame();
+            } else if (menuIndex == 1) {
+                exit(0);
+            }
+        }
+        return;
+    }
+    switch (key) {
+        case 'w':
+        case 'W':
+            playerCar.moveUp();
+            break;
+        case 's':
+        case 'S':
+            playerCar.moveDown();
+            break;
+        case 'a':
+        case 'A':
+            playerCar.moveLeft();
+            break;
+        case 'd':
+        case 'D':
+            playerCar.moveRight();
+            break;
+        case ' ':
+            if (currentState == GameState::GAME_OVER) {
+                currentState = GameState::MENU;
+                glutPostRedisplay();
+                return;
+            } else if (currentState == GameState::PLAYING) {
+                playerCar.fire();
+            }
+            break;
+        case 'p':
+        case 'P':  // P key to pause/unpause
+            if (currentState == GameState::PLAYING) {
+                currentState = GameState::PAUSED;
+            } else if (currentState == GameState::PAUSED) {
+                currentState = GameState::PLAYING;
+            }
+            break;
+        case 27:   // ESC key
+            exit(0);
+            break;
+    }
+}
+
+void keyboardUp(unsigned char key, int x, int y) {
+    switch (key) {
+        case 'w':
+        case 'W':
+            playerCar.stopVertical();
+            break;
+        case 's':
+        case 'S':
+            playerCar.stopVertical();
+            break;
+        case 'a':
+        case 'A':
+            playerCar.stopHorizontal();
+            break;
+        case 'd':
+        case 'D':
+            playerCar.stopHorizontal();
+            break;
+    }
+}
+
+void reshape(int w, int h) {
+    // Set the viewport to cover the new window size
+    glViewport(0, 0, w, h);
+    
+    // Calculate aspect ratio
+    float aspectRatio = (float)w / (float)h;
+    
+    // Set up projection matrix to maintain proper aspect ratio
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    
+    // Use an orthographic projection with aspect ratio correction
+    // Scale the view to maintain the same relative sizes
+    float scale = 1.0f;
+    if (w > h) {
+        scale = (float)h / (float)w;
+        gluOrtho2D(-1.0f * aspectRatio, 1.0f * aspectRatio, -1.0f, 1.0f);
+    } else {
+        scale = (float)w / (float)h;
+        gluOrtho2D(-1.0f, 1.0f, -1.0f / aspectRatio, 1.0f / aspectRatio);
+    }
+    
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+}
+
+void specialKeys(int key, int x, int y) {
+    if (currentState == GameState::MENU) {
+        if (key == GLUT_KEY_UP) {
+            menuIndex = (menuIndex - 1 + MENU_ITEMS) % MENU_ITEMS;
+        } else if (key == GLUT_KEY_DOWN) {
+            menuIndex = (menuIndex + 1) % MENU_ITEMS;
+        }
+        glutPostRedisplay();
+        return;
+    }
+    switch (key) {
+        case GLUT_KEY_UP:
+            playerCar.moveUp();
+            break;
+        case GLUT_KEY_DOWN:
+            playerCar.moveDown();
+            break;
+        case GLUT_KEY_LEFT:
+            playerCar.moveLeft();
+            break;
+        case GLUT_KEY_RIGHT:
+            playerCar.moveRight();
+            break;
+    }
+}
+
+void specialKeysUp(int key, int x, int y) {
+    switch (key) {
+        case GLUT_KEY_UP:
+        case GLUT_KEY_DOWN:
+            playerCar.stopVertical();
+            break;
+        case GLUT_KEY_LEFT:
+        case GLUT_KEY_RIGHT:
+            playerCar.stopHorizontal();
+            break;
+    }
+}
+#pragma once
+#include <GL/glew.h>
+#include <GL/freeglut.h>
+#include <vector>
+#include "Texture.h"
+
+class Car {
+public:
+    struct Projectile {
+        float x, y;
+        float speed;
+        bool isActive;
+    };
+
+    Car();
+    ~Car();
+
+    void init();
+    void initAsEnemy();
+    void update(float deltaTime);
+    void render() const;
+    void moveLeft();
+    void moveRight();
+    void moveUp();
+    void moveDown();
+    void stopHorizontal();
+    void stopVertical();
+    void fire();
+    bool checkCollision(float x, float y, float width, float height) const;
+    bool checkProjectileCollision(float x, float y, float width, float height) const;
+    void takeDamage(float amount);
+    void addScore(int points);
+    float getHealth() const;
+    int getScore() const;
+    float getX() const;
+    float getY() const;
+    float getWidth() const;
+    float getHeight() const;
+    float getSpeed() const;
+    bool isActive() const;
+    void setX(float x);
+    void setY(float y);
+    void setSpeed(float speed);
+    void setActive(bool active);
+    const std::vector<Projectile>& getProjectiles() const;
+    static void ensureEnemyCarTextureLoaded();
+
+private:
+    float x, y;
+    const float width = 0.1f;
+    const float height = 0.1f;
+    float speed;
+    float health;
+    int score;
+    bool active;
+    bool isEnemy = false;
+    const float fireCooldown;
+    float fireTimer;
+    Texture carTexture;
+    std::vector<Projectile> projectiles;
+    static constexpr float FIRE_COOLDOWN = 0.5f;
+    static constexpr float PROJECTILE_SPEED = 10.0f;
+    float horizontalSpeed;
+    float verticalSpeed;
+    static Texture enemyCarTexture;
+    static bool enemyCarTextureLoaded;
+}; 
+#pragma once
+#include <GL/glew.h>
+#include <GL/freeglut.h>
+#include <vector>
+#include <string>
+#include <cstdlib>
+#include <ctime>
+#include "Car.h"
+#include "Texture.h"
+
+class Level {
+public:
+    enum class ObstacleType {
+        BARRIER,
+        CONE,
+        ROCK,
+        TREE,
+        ENEMY_CAR
+    };
+
+    struct Obstacle {
+        float x, y;
+        float width;  // Will be set in spawnObstacle
+        float height; // Will be set in spawnObstacle
+        ObstacleType type;
+        bool isActive;
+    };
+
+    Level();
+    ~Level();
+
+    void init();
+    void update(float deltaTime, Car& playerCar);
+    void render();
+    bool isComplete() const;
+    int getScore() const;
+    int getLevel() const;
+    int getHighScore() const;
+    void reset();
+    void checkCollisions(Car& playerCar);
+
+private:
+    void createRoadTexture();
+    void spawnObstacle();
+    void spawnEnemyCar();
+    void drawRoad();
+    void drawLaneLines();
+    void drawObstacles();
+    void updateLevel();
+    void updateTimerScore(float deltaTime);
+    void loadHighScore();
+    void saveHighScore();
+
+    GLuint roadTextureId;
+    std::vector<Obstacle> obstacles;
+    std::vector<Car> enemyCars;
+    float roadWidth;
+    float roadLength;
+    float scrollSpeed;
+    int score;
+    int level;
+    float levelTimer;
+    float obstacleSpawnTimer;
+    float enemySpawnTimer;
+    float roadOffset;  // For scrolling effect
+    float scoreTimer;  // Timer for score accumulation
+    Texture barrierTexture;
+    Texture coneTexture;
+    Texture rockTexture;
+    Texture treeTexture;
+    Texture enemyCarTexture;
+    static constexpr float LEVEL_1_SCORE = 0.0f;
+    static constexpr float LEVEL_2_SCORE = 100.0f;
+    static constexpr float LEVEL_3_SCORE = 300.0f;
+    static constexpr int OBSTACLE_POINTS = 50;
+    static constexpr int ENEMY_CAR_POINTS = 200;
+    static constexpr int TIME_SCORE_POINTS = 1;  // Points per second (changed from 100 to 1)
+    static constexpr float TIME_SCORE_INTERVAL = 1.0f;  // Score every second
+    static constexpr float OBSTACLE_SPAWN_INTERVAL = 1.0f;
+    static constexpr float ENEMY_SPAWN_INTERVAL = 5.0f;
+    static constexpr int ROAD_TEXTURE_SIZE = 256;  // Size of the procedural texture
+    int highScore;
+}; 
+//{{NO_DEPENDENCIES}}
+// Microsoft Visual C++ generated include file.
+// Used by NeedForSpeedInfinity.rc
+
+// Next default values for new objects
+// 
+#ifdef APSTUDIO_INVOKED
+#ifndef APSTUDIO_READONLY_SYMBOLS
+#define _APS_NEXT_RESOURCE_VALUE        101
+#define _APS_NEXT_COMMAND_VALUE         40001
+#define _APS_NEXT_CONTROL_VALUE         1001
+#define _APS_NEXT_SYMED_VALUE           101
+#endif
+#endif
+#pragma once
+#include <GL/glew.h>
+#include <GL/freeglut.h>
+#include <string>
+
+class Texture {
+private:
+    GLuint textureID;
+    int width;
+    int height;
+    int channels;
+
+public:
+    Texture();
+    ~Texture();
+
+    bool loadFromFile(const std::string& filename);
+    void bind() const;
+    void unbind() const;
+    
+    int getWidth() const { return width; }
+    int getHeight() const { return height; }
+}; 

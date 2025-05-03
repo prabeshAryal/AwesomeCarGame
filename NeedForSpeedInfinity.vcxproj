@@ -148,15 +148,41 @@ copy /Y "$(ProjectDir)lib\glew32.dll" "$(OutDir)"
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="src\Camera.cpp" />
     <ClCompile Include="src\Car.cpp" />
+    <ClCompile Include="src\Game.cpp" />
+    <ClCompile Include="src\InputHandler.cpp" />
     <ClCompile Include="src\Level.cpp" />
+    <ClCompile Include="src\Shader.cpp" />
     <ClCompile Include="src\Texture.cpp" />
+    <ClCompile Include="src\Timer.cpp" />
+    <ClCompile Include="src\Track.cpp" />
+    <ClCompile Include="src\VectorMath.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Car.h" />
     <ClInclude Include="include\Level.h" />
+    <ClInclude Include="include\resource.h" />
     <ClInclude Include="include\Texture.h" />
     <ClInclude Include="include\stb_image.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="textures\barricade.png" />
+    <Image Include="textures\booster-flame.png" />
+    <Image Include="textures\car.png" />
+    <Image Include="textures\cone.png" />
+    <Image Include="textures\dsada.jpg" />
+    <Image Include="textures\enemycar.png" />
+    <Image Include="textures\rapid_fire.png" />
+    <Image Include="textures\road.jpg" />
+    <Image Include="textures\rock.png" />
+    <Image Include="textures\score_boost.png" />
+    <Image Include="textures\shield.png" />
+    <Image Include="textures\speed_boost.png" />
+    <Image Include="textures\tree.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="highscore.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

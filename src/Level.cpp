@@ -22,8 +22,8 @@ const float SCORE_PER_SECOND = 1.0f; // 1 point per second
 const float SPEED_SCORE_MULTIPLIER = 0.5f; // Additional points based on speed
 
 // Add obstacle spawn timing constants
-const float INITIAL_OBSTACLE_SPAWN_INTERVAL = 2.0f; // Spawn every 2 seconds at start
-const float MIN_OBSTACLE_SPAWN_INTERVAL = 1.0f; // Minimum spawn interval
+const float INITIAL_OBSTACLE_SPAWN_INTERVAL = 1.0f; // Spawn every 2 seconds at start
+const float MIN_OBSTACLE_SPAWN_INTERVAL = 0.1f; // Minimum spawn interval
 const float OBSTACLE_SPAWN_SPEED_FACTOR = 0.5f; // How much speed affects spawn rate
 
 Level::Level() : roadWidth(4.5f), roadLength(20.0f), scrollSpeed(LEVEL_1_SPEED),

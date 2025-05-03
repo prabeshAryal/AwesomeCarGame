@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\src">
+      <UniqueIdentifier>{6db96007-5174-4c1b-8a98-0f22a99f576c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\textures">
+      <UniqueIdentifier>{e9545b1f-e431-4b9d-9e35-c55946299c0c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Car.h">
@@ -21,22 +27,95 @@
     <ClInclude Include="include\Level.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\resource.h">
+    <ClInclude Include="include\Texture.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="resource.h">
+    <ClInclude Include="include\stb_image.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\resource.h">
+      <Filter>Resource Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Camera.cpp">
+      <Filter>Source Files\src</Filter>
+    </ClCompile>
     <ClCompile Include="src\Car.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Game.cpp">
+      <Filter>Source Files\src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\InputHandler.cpp">
+      <Filter>Source Files\src</Filter>
     </ClCompile>
     <ClCompile Include="src\Level.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\src</Filter>
     </ClCompile>
+    <ClCompile Include="src\Shader.cpp">
+      <Filter>Source Files\src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Texture.cpp">
+      <Filter>Source Files\src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Timer.cpp">
+      <Filter>Source Files\src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Track.cpp">
+      <Filter>Source Files\src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\VectorMath.cpp">
+      <Filter>Source Files\src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="textures\barricade.png">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\booster-flame.png">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\car.png">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\cone.png">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\dsada.jpg">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\enemycar.png">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\rapid_fire.png">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\road.jpg">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\rock.png">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\score_boost.png">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\shield.png">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\speed_boost.png">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+    <Image Include="textures\tree.png">
+      <Filter>Source Files\textures</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="highscore.txt">
+      <Filter>Source Files</Filter>
+    </Text>
   </ItemGroup>
 </Project>

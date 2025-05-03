@@ -31,7 +31,6 @@ void Car::ensureEnemyCarTextureLoaded() {
 void Car::initAsEnemy() {
     ensureEnemyCarTextureLoaded();
     isEnemy = true;
-    // For enemy cars, set vertical speed to 0 as we'll control it in the Level class
     verticalSpeed = 0.0f;
     horizontalSpeed = 0.0f;
 }

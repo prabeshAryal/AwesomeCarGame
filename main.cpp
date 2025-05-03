@@ -121,6 +121,11 @@ void renderText(float x, float y, const char* text) {
 }
 
 void renderMenu() {
+    // Ensure menuIndex is within bounds
+    if (menuIndex < 0 || menuIndex >= MENU_ITEMS) {
+        menuIndex = 0; // Reset to a valid index
+    }
+
     // Title
     glColor3f(1.0f, 0.5f, 0.0f); // Orange color for title
     renderText(-0.3f, 0.6f, "NEED FOR SPEED");
@@ -137,7 +142,11 @@ void renderMenu() {
     // Display high score with golden color
     glColor3f(1.0f, 0.84f, 0.0f); // Gold color
     char highScoreText[32];
-    snprintf(highScoreText, sizeof(highScoreText), "Best Score: %d", currentLevel.getHighScore());
+    try {
+        snprintf(highScoreText, sizeof(highScoreText), "Best Score: %d", currentLevel.getHighScore());
+    } catch (const std::exception& e) {
+        snprintf(highScoreText, sizeof(highScoreText), "Best Score: N/A");
+    }
     renderText(-0.2f, 0.35f, highScoreText);
     
     // Menu items with better spacing and highlighting
@@ -188,9 +197,44 @@ void renderGameOver() {
 }
 
 void renderPause() {
-    glColor3f(1.0f, 1.0f, 0.0f);
-    renderText(-0.1f, 0.0f, "PAUSED");
-    renderText(-0.3f, -0.2f, "Press P to resume");
+    // Set up orthographic projection for 2D rendering
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0); // Orthographic projection covering the screen
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    // Disable depth testing to ensure the background is always visible
+    glDisable(GL_DEPTH_TEST);
+
+    // Draw translucent dark blue background
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(0.0f, 0.0f, 0.5f, 0.5f); // Dark blue with 50% transparency
+    glBegin(GL_QUADS);
+    glVertex2f(-1.0f, 1.0f);  // Top-left corner
+    glVertex2f(1.0f, 1.0f);   // Top-right corner
+    glVertex2f(1.0f, -1.0f);  // Bottom-right corner
+    glVertex2f(-1.0f, -1.0f); // Bottom-left corner
+    glEnd();
+    glDisable(GL_BLEND);
+
+    // Render pause text on top
+    glColor3f(1.0f, 1.0f, 0.0f); // Yellow color for text
+    renderText(-0.035f, 0.0f, "PAUSED");
+    renderText(-0.08f, -0.5f, "Press P to resume");
+
+    // Restore depth testing
+    glEnable(GL_DEPTH_TEST);
+
+    // Restore previous projection and modelview matrices
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
 }
 
 void renderGame() {
@@ -220,7 +264,7 @@ void renderGame() {
     sprintf_s(scoreText, "Score: %d", currentLevel.getScore());
     sprintf_s(highScoreText, "Best: %d", currentLevel.getHighScore());
     sprintf_s(healthText, "HP: %.0f%%", playerCar.getHealth());
-    sprintf_s(levelText, "Lvl: %d", currentLevel.getLevel());
+    sprintf_s(levelText, "Level: %d", currentLevel.getLevel());
     
     // Calculate the same boundaries as car movement
     float emergencyMargin = 0.3f;
@@ -248,7 +292,7 @@ void renderGame() {
     
     // Level
     glColor3f(0.0f, 1.0f, 1.0f);  // Cyan for level
-    renderText(screenLeftBound + spacing * 2, 0.9f, levelText);
+    renderText(screenLeftBound + spacing * 2.5f, 0.9f, levelText);
     
     // Health (rightmost)
     float healthPercent = playerCar.getHealth();
@@ -259,7 +303,7 @@ void renderGame() {
     } else {
         glColor3f(1.0f, 0.0f, 0.0f);  // Red for low health
     }
-    renderText(screenLeftBound + spacing * 3, 0.9f, healthText);
+    renderText(screenLeftBound + spacing * 3.5, 0.9f, healthText);
     
     // Restore settings
     glEnable(GL_DEPTH_TEST);
