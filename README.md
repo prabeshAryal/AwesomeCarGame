@@ -185,7 +185,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Submission Report
 For a comprehensive understanding of the project, please refer to the detailed submission report:
-[Project Report PDF](extras/SDF-2%20OpenGL%20Project.pdf)
+[Project Report PDF](extras/MidTerm-Report-Trimmed.pdf)
 
 The report includes:
 - Detailed project description
